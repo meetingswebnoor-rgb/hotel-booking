@@ -43,6 +43,11 @@ ini_set('display_errors', config('app.debug') ? '1' : '0');
 set_exception_handler(static function (Throwable $e): void {
     error_log($e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
 
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, (string) $e . PHP_EOL);
+        exit(1);
+    }
+
     if (!headers_sent()) {
         http_response_code(500);
     }
@@ -57,4 +62,6 @@ set_exception_handler(static function (Throwable $e): void {
     echo View::render('errors/500', [], 'public');
 });
 
-Session::start();
+if (PHP_SAPI !== 'cli') {
+    Session::start();
+}

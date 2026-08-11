@@ -1,0 +1,49 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/app/bootstrap.php';
+
+use App\Core\Database;
+use App\Core\Migrator;
+
+$command = $argv[1] ?? null;
+$migrator = new Migrator(BASE_PATH . '/database/migrations');
+
+switch ($command) {
+    case 'migrate':
+        $migrator->migrate();
+        break;
+
+    case 'migrate:rollback':
+        $migrator->rollback();
+        break;
+
+    case 'migrate:fresh':
+        $migrator->fresh();
+        break;
+
+    case 'migrate:status':
+        $migrator->status();
+        break;
+
+    case 'seed':
+        $seeder = require BASE_PATH . '/database/seeders/DatabaseSeeder.php';
+        $seeder->run(Database::connection());
+        break;
+
+    default:
+        fwrite(STDOUT, <<<TXT
+            Hotezo CLI
+
+            Usage:
+              php cli migrate            Run all pending migrations
+              php cli migrate:rollback   Roll back the last batch of migrations
+              php cli migrate:fresh      Drop all tables and re-run every migration
+              php cli migrate:status     Show which migrations have run
+              php cli seed               Seed roles, OTAs, a Super Admin, and sample hotels
+
+            TXT);
+        exit($command === null ? 0 : 1);
+}
