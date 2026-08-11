@@ -1,26 +1,39 @@
 <?php
+use App\Core\RoleLevel;
+
 /**
  * Admin sidebar nav. Every module below lands as its own controller +
- * routes in a future step — items stay disabled placeholders until then.
+ * routes in a future step — items without a real href stay disabled
+ * placeholders until then, but their VISIBILITY is already fully
+ * permission-gated via can()/role_at_least() so the nav only ever
+ * shows what the current user is actually allowed to reach.
  *
  * @var string $active
  */
 $active ??= '';
 
 $navItems = [
-    ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => '&#9635;', 'href' => route('dashboard')],
-    ['key' => 'bookings', 'label' => 'Bookings', 'icon' => '&#128197;'],
-    ['key' => 'hotels', 'label' => 'Hotels', 'icon' => '&#127976;'],
-    ['key' => 'settlements', 'label' => 'Settlements', 'icon' => '&#128176;'],
-    ['key' => 'invoices', 'label' => 'Invoices', 'icon' => '&#129534;'],
-    ['key' => 'reports', 'label' => 'Reports', 'icon' => '&#128202;'],
-    ['key' => 'settings', 'label' => 'Settings', 'icon' => '&#9881;'],
+    ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid', 'href' => route('dashboard'), 'visible' => true],
+    ['key' => 'bookings', 'label' => 'Bookings', 'icon' => 'calendar', 'visible' => can('bookings', 'view')],
+    ['key' => 'hotels', 'label' => 'Hotels', 'icon' => 'home', 'visible' => can('hotels', 'view')],
+    ['key' => 'otas', 'label' => 'OTAs', 'icon' => 'share', 'visible' => can('otas', 'view')],
+    ['key' => 'invoices', 'label' => 'Invoices', 'icon' => 'file-text', 'visible' => can('invoices', 'view')],
+    ['key' => 'reports', 'label' => 'Reports', 'icon' => 'bar-chart', 'visible' => can('reports', 'view')],
+    ['key' => 'users', 'label' => 'Users', 'icon' => 'users', 'visible' => can('users', 'view')],
+    ['key' => 'emails', 'label' => 'Emails', 'icon' => 'mail', 'visible' => can('emails', 'view')],
+    ['key' => 'trash', 'label' => 'Trash', 'icon' => 'trash', 'visible' => role_at_least(RoleLevel::SUPER_ADMIN)],
+    ['key' => 'settings', 'label' => 'Settings', 'icon' => 'sliders', 'visible' => can('settings', 'view')],
 ];
+
+$navItems = array_values(array_filter($navItems, static fn (array $item): bool => $item['visible']));
 ?>
 <aside class="sidebar" id="sidebar">
   <div class="sidebar__brand">
     <span class="sidebar__logo" aria-hidden="true"></span>
     <span>Hotezo</span>
+    <button type="button" class="sidebar__mobile-close" data-mobile-nav-close aria-label="Close navigation">
+      <?= icon('x', 'icon icon-sm') ?>
+    </button>
   </div>
 
   <nav class="sidebar__nav" aria-label="Admin navigation">
@@ -30,15 +43,17 @@ $navItems = [
         class="sidebar__link <?= $active === $item['key'] ? 'active' : '' ?>"
         aria-disabled="<?= isset($item['href']) ? 'false' : 'true' ?>"
         title="<?= e($item['label']) ?>"
+        data-tooltip="<?= e($item['label']) ?>"
       >
-        <span aria-hidden="true"><?= $item['icon'] ?></span>
+        <?= icon($item['icon'], 'icon') ?>
         <span><?= e($item['label']) ?></span>
       </a>
     <?php endforeach; ?>
   </nav>
 
-  <button type="button" class="sidebar__link" data-sidebar-toggle aria-label="Collapse sidebar">
-    <span aria-hidden="true">&#8676;</span>
+  <button type="button" class="sidebar__link sidebar__collapse-btn" data-sidebar-toggle title="Collapse" data-tooltip="Expand">
+    <?= icon('chevron-left', 'icon') ?>
     <span>Collapse</span>
   </button>
 </aside>
+<div class="sidebar-backdrop" data-mobile-nav-close></div>

@@ -22,6 +22,7 @@ return [
         'settlements' => ['view', 'create', 'edit'],
         'reports' => ['view'],
         'settings' => ['view', 'edit'],
+        'emails' => ['view', 'create', 'edit'],
     ],
 
     'hotel_manager' => [

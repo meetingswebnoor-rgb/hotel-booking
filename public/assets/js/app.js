@@ -1,9 +1,21 @@
 /**
  * app.js — entry point loaded on every page. Wires up theme, nav,
- * toasts/modals/tabs, and page-enter motion.
+ * toasts/modals/tabs/dropdowns, the admin shell (sidebar collapse,
+ * mobile nav, search, notifications), and page-enter motion.
  */
 
-import { initTheme, initModals, initTabs, initDropdowns, toast } from './ui.js';
+import {
+  initTheme,
+  initModals,
+  initTabs,
+  initDropdowns,
+  initSidebarCollapse,
+  initMobileNav,
+  initSearch,
+  initNotifications,
+  toast,
+} from './ui.js';
+import { initConfirmDialog, confirmDialog } from './confirm.js';
 import { initPageEnter, initCountUp, initHoverLift } from './animations.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,13 +23,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initModals();
   initTabs();
   initDropdowns();
+  initSidebarCollapse();
+  initMobileNav();
+  initSearch();
+  initNotifications();
+  initConfirmDialog();
   initHoverLift();
-  initPageEnter();
+  initPageEnter('[data-animate], .app-content > *');
   initCountUp();
-
-  const mobileToggle = document.querySelector('[data-sidebar-toggle]');
-  const sidebar = document.querySelector('.sidebar');
-  mobileToggle?.addEventListener('click', () => sidebar?.classList.toggle('collapsed'));
 
   // Render any server-side flash message as a toast.
   const flash = document.querySelector('[data-flash]');
@@ -26,4 +39,4 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-window.Hotezo = { toast };
+window.Hotezo = { toast, confirmDialog };

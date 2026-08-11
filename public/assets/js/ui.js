@@ -1,7 +1,10 @@
 /**
- * ui.js — small DOM helpers: toasts, modals, tabs, dropdowns.
+ * ui.js — small DOM helpers: toasts, modals, tabs, dropdowns, theme,
+ * sidebar collapse/mobile nav, global search, notifications bell.
  * No framework, no build step — plain ES module.
  */
+
+import { api } from './api.js';
 
 let toastContainer = null;
 
@@ -134,6 +137,8 @@ export function initDropdowns() {
   });
 }
 
+const THEME_TRANSITION_MS = 320;
+
 export function initTheme() {
   const stored = localStorage.getItem('hotezo-theme');
   if (stored) {
@@ -148,7 +153,162 @@ export function initTheme() {
       ?? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
     const next = current === 'dark' ? 'light' : 'dark';
 
+    // Briefly transition every element's colors so the switch reads as
+    // a smooth cross-fade rather than an instant flip.
+    document.documentElement.classList.add('theme-transitioning');
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('hotezo-theme', next);
+    window.setTimeout(() => {
+      document.documentElement.classList.remove('theme-transitioning');
+    }, THEME_TRANSITION_MS);
+  });
+}
+
+export function initSidebarCollapse() {
+  const sidebar = document.querySelector('.sidebar');
+  if (!sidebar) return;
+
+  if (localStorage.getItem('hotezo-sidebar-collapsed') === '1') {
+    sidebar.classList.add('collapsed');
+  }
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-sidebar-toggle]')) return;
+    const collapsed = sidebar.classList.toggle('collapsed');
+    localStorage.setItem('hotezo-sidebar-collapsed', collapsed ? '1' : '0');
+  });
+}
+
+export function initMobileNav() {
+  const sidebar = document.querySelector('.sidebar');
+  const backdrop = document.querySelector('.sidebar-backdrop');
+  if (!sidebar) return;
+
+  const open = () => {
+    sidebar.classList.add('mobile-open');
+    backdrop?.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  };
+
+  const close = () => {
+    sidebar.classList.remove('mobile-open');
+    backdrop?.classList.remove('open');
+    document.body.style.overflow = '';
+  };
+
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-mobile-nav-toggle]')) {
+      open();
+      return;
+    }
+
+    if (event.target.closest('[data-mobile-nav-close]')) {
+      close();
+      return;
+    }
+
+    if (window.innerWidth <= 900 && event.target.closest('.sidebar__link[href]:not([aria-disabled="true"])')) {
+      close();
+    }
+  });
+}
+
+export function initSearch() {
+  const input = document.querySelector('[data-search-input]');
+  const results = document.querySelector('[data-search-results]');
+  if (!input || !results) return;
+
+  let timer = null;
+
+  const render = (items) => {
+    if (!items.length) {
+      results.innerHTML = '<div class="search-results__empty">No matches</div>';
+      results.hidden = false;
+      return;
+    }
+
+    results.innerHTML = items
+      .map(
+        (item) => `
+          <div class="search-results__item">
+            <span class="search-results__label">${item.label}</span>
+            <span class="search-results__meta">${item.meta || ''}</span>
+          </div>
+        `
+      )
+      .join('');
+    results.hidden = false;
+  };
+
+  input.addEventListener('input', () => {
+    window.clearTimeout(timer);
+    const q = input.value.trim();
+
+    if (q.length < 2) {
+      results.hidden = true;
+      return;
+    }
+
+    timer = window.setTimeout(async () => {
+      try {
+        const data = await api(`/search?q=${encodeURIComponent(q)}`);
+        render(data.results ?? []);
+      } catch {
+        results.hidden = true;
+      }
+    }, 250);
+  });
+
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.search-box')) {
+      results.hidden = true;
+    }
+  });
+}
+
+export function initNotifications() {
+  const trigger = document.querySelector('[data-notif-trigger]');
+  const badge = document.querySelector('[data-notif-badge]');
+  const list = document.querySelector('[data-notif-list]');
+  if (!trigger) return;
+
+  const setBadge = (count) => {
+    if (!badge) return;
+    if (count > 0) {
+      badge.textContent = count > 9 ? '9+' : String(count);
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+    }
+  };
+
+  api('/notifications/count')
+    .then((data) => setBadge(data.unread_count ?? 0))
+    .catch(() => {});
+
+  trigger.addEventListener('click', async () => {
+    if (!list) return;
+
+    try {
+      const data = await api('/notifications');
+      const items = data.items ?? [];
+
+      list.innerHTML = items.length
+        ? items
+            .map(
+              (n) => `
+                <div class="notif-item">
+                  <div class="notif-item__subject">${n.subject ?? n.event_key}</div>
+                  <div class="notif-item__time">${n.created_at}</div>
+                </div>
+              `
+            )
+            .join('')
+        : '<div class="dropdown__menu-header"><span class="dropdown__menu-email">No notifications yet</span></div>';
+
+      setBadge(0);
+    } catch {
+      // Silent — the badge simply won't update this time.
+    }
   });
 }

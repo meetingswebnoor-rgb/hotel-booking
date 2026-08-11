@@ -1,12 +1,19 @@
 <?php
+use App\Core\View;
+
 /**
  * @var array<string, mixed>|null $user
  * @var string|null $roleName
  * @var int $roleLevel
  * @var array<int, array<string, mixed>> $hotels
- * @var bool $hasGlobalHotelAccess
+ * @var bool $isUnrestricted
  */
+
+View::section('breadcrumbs');
 ?>
+<?= partial('breadcrumbs', ['items' => [['label' => 'Home', 'href' => route('home')], ['label' => 'Dashboard']]]) ?>
+<?php View::endSection(); ?>
+
 <div class="flex-between mb-6" data-animate>
   <div>
     <h2>Welcome, <?= e((string) ($user['full_name'] ?? 'there')) ?></h2>
@@ -23,19 +30,19 @@
 
 <div class="showcase-grid" data-animate>
   <div class="stat-card glass">
-    <div class="stat-card__icon" aria-hidden="true">&#127976;</div>
+    <div class="stat-card__icon"><?= icon('home') ?></div>
     <div class="stat-card__value font-mono"><?= count($hotels) ?></div>
     <div class="stat-card__label">Hotels you can see</div>
   </div>
 
   <div class="stat-card glass">
-    <div class="stat-card__icon" aria-hidden="true">&#128273;</div>
-    <div class="stat-card__value font-mono"><?= $hasGlobalHotelAccess ? 'All' : count($hotels) ?></div>
+    <div class="stat-card__icon"><?= icon('sliders') ?></div>
+    <div class="stat-card__value font-mono"><?= $isUnrestricted ? 'All' : count($hotels) ?></div>
     <div class="stat-card__label">Hotel access scope</div>
   </div>
 
   <div class="stat-card glass">
-    <div class="stat-card__icon" aria-hidden="true">&#9989;</div>
+    <div class="stat-card__icon"><?= icon('check') ?></div>
     <div class="stat-card__value font-mono"><?= can('bookings', 'create') ? 'Yes' : 'No' ?></div>
     <div class="stat-card__label">Can create bookings</div>
   </div>
@@ -44,8 +51,8 @@
 <div class="card glass mt-8" data-animate>
   <div class="flex-between mb-4">
     <h3>Your hotels</h3>
-    <span class="badge <?= $hasGlobalHotelAccess ? 'badge--info' : 'badge--neutral' ?>">
-      <?= $hasGlobalHotelAccess ? 'Unrestricted access' : 'Scoped to assigned hotels' ?>
+    <span class="badge <?= $isUnrestricted ? 'badge--info' : 'badge--neutral' ?>">
+      <?= $isUnrestricted ? 'Unrestricted access' : 'Filtered / scoped view' ?>
     </span>
   </div>
 

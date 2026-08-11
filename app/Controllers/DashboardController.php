@@ -19,7 +19,8 @@ final class DashboardController
     public function index(Request $request): Response
     {
         $user = Auth::user();
-        $hotels = $this->scopedHotels($request->scope('hotel_ids'));
+        $hotelIds = $request->scope('hotel_ids');
+        $hotels = $this->scopedHotels($hotelIds);
 
         $html = view('admin/dashboard', [
             'title' => 'Dashboard',
@@ -29,7 +30,10 @@ final class DashboardController
             'roleName' => Auth::roleName(),
             'roleLevel' => Auth::level(),
             'hotels' => $hotels,
-            'hasGlobalHotelAccess' => Auth::hasGlobalHotelAccess(),
+            // Whether THIS view is unrestricted, not just the user's
+            // baseline permission — a global-access user who's picked
+            // one hotel in the topbar filter is no longer "unrestricted".
+            'isUnrestricted' => $hotelIds === null,
         ], 'admin');
 
         return Response::html($html);

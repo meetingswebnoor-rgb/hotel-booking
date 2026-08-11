@@ -217,6 +217,39 @@ p {
   color: transparent;
 }
 
+/* ----------------------------------- Icons ----------------------------------- */
+.icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.icon-sm {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-xs {
+  width: 13px;
+  height: 13px;
+}
+
+/* --------------------------- Theme switch transition --------------------------- */
+/*
+ * Applied to <html> for a short window while the theme toggles, so
+ * every themed element cross-fades instead of flipping instantly.
+ * Scoped and temporary (removed by JS after the transition completes)
+ * — the !important only needs to win for that window.
+ */
+.theme-transitioning,
+.theme-transitioning * {
+  transition:
+    background-color var(--dur-slow) var(--ease-out-3) !important,
+    border-color var(--dur-slow) var(--ease-out-3) !important,
+    color var(--dur-slow) var(--ease-out-3) !important,
+    box-shadow var(--dur-slow) var(--ease-out-3) !important;
+}
+
 /* --------------------------------- Layout ---------------------------------- */
 .container {
   width: 100%;

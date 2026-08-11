@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Core\App;
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\Icons;
 use App\Core\Permission;
 use App\Core\Response;
 use App\Core\Session;
@@ -97,6 +98,13 @@ if (!function_exists('route')) {
     function route(string $name, array $params = []): string
     {
         return App::router()?->url($name, $params) ?? '#';
+    }
+}
+
+if (!function_exists('icon')) {
+    function icon(string $name, string $class = 'icon'): string
+    {
+        return Icons::render($name, $class);
     }
 }
 

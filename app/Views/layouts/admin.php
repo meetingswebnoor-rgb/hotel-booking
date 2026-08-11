@@ -29,9 +29,12 @@ use App\Core\View;
 
     <div class="app-content"><?= $content ?></div>
   </div>
+
+  <?= partial('bottom-tab-bar', ['active' => $active ?? '']) ?>
 </div>
 
 <?= partial('toasts') ?>
+<?= partial('confirm-dialog') ?>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js" defer></script>

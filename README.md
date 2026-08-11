@@ -12,10 +12,11 @@ Hotezo is two products in one platform:
 
 This repository currently contains the **project skeleton** (folder structure, the custom
 lightweight MVC core, the design system, a styled placeholder landing page), the **complete
-MySQL/MariaDB schema** (27 tables, migrations, and seed data), and the **auth + authorization
-system** (login, sessions, role levels, hotel scoping, per-user permission overrides). Feature
-modules (hotel/booking CRUD, commission calculation, the real dashboards) land on top of this in
-later steps.
+MySQL/MariaDB schema** (27 tables, migrations, and seed data), the **auth + authorization system**
+(login, sessions, role levels, hotel scoping, per-user permission overrides), and the
+**authenticated app shell** (sidebar, topbar, mobile nav, confirm dialogs — everything every admin
+page renders inside). Feature modules (hotel/booking CRUD, commission calculation, the real
+dashboard content) land on top of this in later steps.
 
 ## Tech stack
 
@@ -30,18 +31,25 @@ later steps.
 
 ```
 public/            The only web-accessible folder (docroot). index.php is the front controller.
+  assets/js/         app.js, api.js, ui.js, confirm.js, animations.js, charts.js — ES modules, no build step.
 app/
   Core/            Router, Database (PDO), Request, Response, View, Session, Csrf, Auth,
-                   Permission, RoleLevel, Validator, Mailer, Model, Migration, Migrator,
-                   Seeder, App (service registry).
-  Controllers/      AuthController, DashboardController, HomeController.
+                   Permission, RoleLevel, Icons, Validator, Mailer, Model, Migration, Migrator,
+                   Seeder, App (service + current-request registry).
+  Controllers/      AuthController, DashboardController, HomeController, HotelFilterController,
+                    NotificationController, SearchController.
   Models/           Per-table models extending Core/Model.
   Services/         Business logic (BookingCalculator, InvoiceService, CommissionService, ...).
   Middleware/        AuthMiddleware, RoleMiddleware(minLevel), HotelScopeMiddleware.
-  Views/             layouts/ (public, admin, auth), partials/, pages/ (incl. auth/, admin/), emails/.
-  Helpers/           Global helper functions (money, gst, fy_label, sanitize, can, role_at_least, ...).
-config/             app.php, database.php, mail.php, auth.php, permissions.php — all read from .env
-                    except permissions.php (the role -> module -> action matrix).
+  Views/
+    layouts/           public.php, admin.php (the app shell), auth.php.
+    partials/          sidebar, topbar, bottom-tab-bar, confirm-dialog, toasts, breadcrumbs,
+                       empty-state, skeleton, nav-public, footer-public, head-meta.
+    pages/             public/, auth/, admin/, errors/.
+  Helpers/           Global helper functions (money, gst, fy_label, sanitize, icon, can,
+                     role_at_least, ...).
+config/             app.php, database.php, mail.php, auth.php, permissions.php (role -> module ->
+                    action matrix — the only config file NOT read from .env).
 database/
   migrations/        27 numbered migration files — see "Database schema" below.
   seeders/           RoleSeeder, OtaSeeder, SuperAdminSeeder, HotelSeeder, DatabaseSeeder.
@@ -249,6 +257,75 @@ middleware (`AuthMiddleware`, `[RoleMiddleware::class, RoleLevel::READ_ONLY]`,
 allows, and a `can('bookings', 'create')`-gated "New Booking" button — a working end-to-end demo
 of the whole stack.
 
+## App shell
+
+Every admin page renders inside `layouts/admin.php`: sidebar + topbar + content, wired once so
+individual pages only need to supply their own content and a `pageTitle`/`active` key.
+
+### Sidebar
+
+`partials/sidebar.php` — 10 possible nav items (Dashboard, Bookings, Hotels, OTAs, Invoices,
+Reports, Users, Emails, Trash, Settings), each gated by `can($module, 'view')` except Dashboard
+(always visible) and Trash (`role_at_least(RoleLevel::SUPER_ADMIN)` — hard-delete access is
+absolute, deliberately *not* run through the overridable `can()` matrix). Items without a real
+route yet stay `aria-disabled` placeholders even when visible, same convention as the rest of the
+still-unbuilt modules. Icons come from `App\Core\Icons` (`icon()` helper) — a small inline-SVG
+registry so no icon font/CDN is needed.
+
+Collapse (desktop) via the button at the bottom — state persists in `localStorage`
+(`hotezo-sidebar-collapsed`); collapsed links fall back to a CSS-only tooltip (`data-tooltip`,
+shown on hover). Below 900px the sidebar becomes a full slide-over drawer instead (hamburger in
+the topbar or "More" in the bottom tab bar opens it, `.sidebar-backdrop` closes it) with a
+`bottom-tab-bar` (Home/Bookings/Hotels/Invoices/More) for quick thumb-reach access.
+
+### Topbar
+
+`partials/topbar.php`, all four pieces genuinely wired (not decorative):
+
+- **Hotel filter** — a dropdown listing the hotels the user is allowed to see (all of them for
+  `admin`+, just their `user_hotels` otherwise), posting to `POST /hotel-filter`. The selection is
+  session-persisted and layered on top of the permission-based scope by `HotelScopeMiddleware`
+  (it can only *narrow* that scope, never widen it — see `HotelFilterController`). Every
+  hotel-scoped controller reads the effective set from `$request->scope('hotel_ids')`.
+- **Theme toggle** — sun/moon SVGs cross-faded via CSS (`[data-theme]` + a
+  `prefers-color-scheme` fallback for no explicit choice); toggling briefly adds a
+  `.theme-transitioning` class to `<html>` so every element's colors animate together instead of
+  flipping instantly.
+- **Notifications bell** — `GET /notifications/count` (peek, doesn't mark anything seen, safe to
+  call on every page load) and `GET /notifications` (full list, marks seen) against
+  `notification_logs`. No feature writes to that table yet, so it'll show an honest empty state
+  today — the wiring is real and ready for when bookings/invoices start logging there.
+- **Search** — debounced `GET /search?q=` against hotel name/city (the one real, browsable entity
+  so far), scoped to the caller's hotels. Extend `SearchController` as more entities get list
+  views.
+- **Profile menu** — name, email, role badge, a placeholder Profile link, and Sign out.
+
+### Confirm dialogs
+
+One shared modal (`partials/confirm-dialog.php` + `public/assets/js/confirm.js`) for destructive
+actions. Two ways to trigger it:
+
+```html
+<!-- Declarative — for delete forms -->
+<form method="POST" action="/hotels/123" data-confirm-submit
+      data-confirm-title="Delete hotel?" data-confirm-message="This can't be undone.">
+```
+
+```js
+// Programmatic — for JS-driven flows
+const ok = await confirmDialog({ title: 'Delete hotel?', message: "This can't be undone." });
+```
+
+### Everything else
+
+Toasts (`toast()` / `window.Hotezo.toast()`) are wired globally via `partials/toasts.php` in every
+layout and auto-render flashed session messages on load. The content area's direct children
+animate in on load (GSAP stagger, `initPageEnter('[data-animate], .app-content > *')` — admin
+pages get this automatically without needing to tag every element). Theme, sidebar-collapse, and
+the hotel filter all persist (`localStorage` for the first two, server-side session for the
+filter) — see `App\Core\Session` / `localStorage` keys `hotezo-theme` and
+`hotezo-sidebar-collapsed`.
+
 ## Conventions
 
 - All money is stored as `DECIMAL(12,2)` INR and formatted with the `money()` helper (Indian
@@ -267,6 +344,12 @@ of the whole stack.
 ## What's next
 
 User management (create/edit users — enforcing `Permission::canManageRoleLevel()`), the real
-hotel/booking CRUD, commission/GST calculation services, the three role-based dashboards built out
-beyond the sample, and PDF invoice generation — each arrives as its own module on top of this
-foundation.
+hotel/booking CRUD, commission/GST calculation services, the dashboard content built out beyond
+the sample, and PDF invoice generation — each arrives as its own module inside the app shell.
+
+**Known scaling limitation:** the topbar hotel filter renders every hotel the user can access as a
+plain (scrollable) list. Fine today at 3 seeded hotels and fine for any hotel-scoped user (rarely
+more than a handful of assigned hotels), but a Super Admin/Admin browsing 1,000+ hotels will need
+a searchable picker instead — swap the dropdown's markup in `partials/topbar.php` for something
+backed by `SearchController` (or a dedicated endpoint) when that matters; `HotelFilterController`
+and the session/scope plumbing underneath don't need to change.

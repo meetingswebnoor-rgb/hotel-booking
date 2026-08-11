@@ -13,5 +13,7 @@ $router = new Router();
 App::setRouter($router);
 
 $request = Request::capture();
+App::setRequest($request);
+
 $response = $router->dispatch($request);
 $response->send();
