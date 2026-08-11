@@ -10,16 +10,16 @@ use App\Core\Request;
 use App\Core\Response;
 
 /**
- * Restricts non-super-admin users to their assigned hotel. Sets
- * $request->scope('hotel_id') for controllers/models to filter by.
+ * Injects the caller's allowed hotel IDs into the request so every
+ * downstream query can filter by them. $request->scope('hotel_ids')
+ * is `null` for unrestricted (Admin/Super Admin) or an array
+ * (possibly empty, meaning "no hotels assigned") for everyone else.
  */
 final class HotelScopeMiddleware implements MiddlewareInterface
 {
     public function handle(Request $request, callable $next): Response
     {
-        if (!Auth::hasRole('super_admin')) {
-            $request->setScope('hotel_id', Auth::hotelId());
-        }
+        $request->setScope('hotel_ids', Auth::hasGlobalHotelAccess() ? null : Auth::hotelIds());
 
         return $next($request);
     }

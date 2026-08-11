@@ -29,6 +29,7 @@ if (is_file($composerAutoload)) {
     require BASE_PATH . '/app/Helpers/helpers.php';
 }
 
+use App\Core\Auth;
 use App\Core\Env;
 use App\Core\Session;
 use App\Core\View;
@@ -64,4 +65,5 @@ set_exception_handler(static function (Throwable $e): void {
 
 if (PHP_SAPI !== 'cli') {
     Session::start();
+    Auth::attemptRememberLogin();
 }

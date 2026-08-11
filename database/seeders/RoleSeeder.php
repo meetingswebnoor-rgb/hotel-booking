@@ -6,23 +6,23 @@ use App\Core\Database;
 use App\Core\Seeder;
 
 /**
- * 10 roles. level: 0 = highest authority, 5 = lowest (matches the
- * CHECK constraint on roles.level in 0001_create_roles_table.php).
+ * 10 roles across 5 levels. level: 0 = lowest authority, 5 = highest
+ * (Super Admin) — see App\Core\RoleLevel for the named constants.
  */
 return new class extends Seeder {
     public function run(PDO $pdo): void
     {
         $roles = [
-            ['name' => 'super_admin', 'level' => 0, 'description' => 'Full control of the Hotezo platform across all hotels.'],
-            ['name' => 'platform_auditor', 'level' => 1, 'description' => 'Hotezo staff; read-only access across all hotels for compliance and audit.'],
-            ['name' => 'platform_support', 'level' => 1, 'description' => 'Hotezo staff; can assist hotels with bookings and invoices but not financial configuration.'],
-            ['name' => 'hotel_admin', 'level' => 2, 'description' => 'Owns and fully controls one or more assigned hotels.'],
-            ['name' => 'hotel_manager', 'level' => 2, 'description' => "Runs day-to-day operations for the hotel(s) they're assigned to."],
-            ['name' => 'revenue_manager', 'level' => 3, 'description' => 'Manages room rates, rate plans, and OTA mapping.'],
-            ['name' => 'accountant', 'level' => 3, 'description' => 'Manages invoices, settlements, and financial reports.'],
-            ['name' => 'front_desk', 'level' => 4, 'description' => 'Handles guest check-in/check-out and marks bookings paid or unpaid.'],
-            ['name' => 'housekeeping', 'level' => 4, 'description' => 'Updates room status (Available/Occupied/Maintenance).'],
-            ['name' => 'read_only_viewer', 'level' => 5, 'description' => 'View-only access with no write permissions.'],
+            ['name' => 'super_admin', 'level' => 5, 'description' => 'Bypasses all rules; full system access.'],
+            ['name' => 'admin', 'level' => 4, 'description' => 'Full management of users, hotels, and OTAs.'],
+            ['name' => 'hotel_manager', 'level' => 3, 'description' => 'Full operational control for assigned hotels only.'],
+            ['name' => 'revenue_manager', 'level' => 2, 'description' => 'Access to financial data and revenue reports.'],
+            ['name' => 'ota_manager', 'level' => 2, 'description' => 'Manages OTA relationships and commissions.'],
+            ['name' => 'reservation_manager', 'level' => 2, 'description' => 'Manages bookings and guest invoices.'],
+            ['name' => 'accounts', 'level' => 2, 'description' => 'Manages settlements, billing, and invoicing.'],
+            ['name' => 'front_desk', 'level' => 1, 'description' => 'Creates bookings, generates invoices, and handles check-in/check-out.'],
+            ['name' => 'reception', 'level' => 1, 'description' => 'Creates bookings. Default role for new users.'],
+            ['name' => 'read_only', 'level' => 0, 'description' => 'View-only access — no create, edit, or delete.'],
         ];
 
         foreach ($roles as $role) {

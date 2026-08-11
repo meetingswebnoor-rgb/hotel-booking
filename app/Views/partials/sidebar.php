@@ -8,7 +8,7 @@
 $active ??= '';
 
 $navItems = [
-    ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => '&#9635;'],
+    ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => '&#9635;', 'href' => route('dashboard')],
     ['key' => 'bookings', 'label' => 'Bookings', 'icon' => '&#128197;'],
     ['key' => 'hotels', 'label' => 'Hotels', 'icon' => '&#127976;'],
     ['key' => 'settlements', 'label' => 'Settlements', 'icon' => '&#128176;'],
@@ -26,9 +26,9 @@ $navItems = [
   <nav class="sidebar__nav" aria-label="Admin navigation">
     <?php foreach ($navItems as $item): ?>
       <a
-        href="#"
+        href="<?= e($item['href'] ?? '#') ?>"
         class="sidebar__link <?= $active === $item['key'] ? 'active' : '' ?>"
-        aria-disabled="<?= $active === $item['key'] ? 'false' : 'true' ?>"
+        aria-disabled="<?= isset($item['href']) ? 'false' : 'true' ?>"
         title="<?= e($item['label']) ?>"
       >
         <span aria-hidden="true"><?= $item['icon'] ?></span>

@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Core\App;
+use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\Permission;
 use App\Core\Response;
 use App\Core\Session;
 use App\Core\View;
@@ -95,6 +97,30 @@ if (!function_exists('route')) {
     function route(string $name, array $params = []): string
     {
         return App::router()?->url($name, $params) ?? '#';
+    }
+}
+
+if (!function_exists('can')) {
+    /**
+     * UI/route guard: super-admin bypass -> hotel scope -> per-user
+     * override -> role-level default. Use in views to hide elements
+     * the current user can't act on, e.g.:
+     *   <?php if (can('bookings', 'create')): ?> ... <?php endif; ?>
+     */
+    function can(string $module, string $action, ?string $hotelId = null): bool
+    {
+        return Permission::check($module, $action, $hotelId);
+    }
+}
+
+if (!function_exists('role_at_least')) {
+    /**
+     * UI/route guard by level, e.g.:
+     *   <?php if (role_at_least(RoleLevel::ADMIN)): ?> ... <?php endif; ?>
+     */
+    function role_at_least(int $level): bool
+    {
+        return Auth::hasMinLevel($level);
     }
 }
 

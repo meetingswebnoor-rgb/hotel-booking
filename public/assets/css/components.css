@@ -263,6 +263,89 @@ table.table {
   color: #fff;
 }
 
+/* ------------------------------------ Alerts ----------------------------------- */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.alert--error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.24);
+  color: var(--color-rose);
+}
+
+.alert--success {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.24);
+  color: var(--color-emerald);
+}
+
+.alert--warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.24);
+  color: var(--color-amber);
+}
+
+.alert--info {
+  background: rgba(6, 182, 212, 0.1);
+  border-color: rgba(6, 182, 212, 0.24);
+  color: var(--color-cyan);
+}
+
+/* ----------------------------------- Dropdown ----------------------------------- */
+.dropdown {
+  position: relative;
+}
+
+.dropdown__menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 200px;
+  padding: var(--space-2);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  transition: opacity var(--dur-fast) var(--ease-out-3), transform var(--dur-fast) var(--ease-out-3), visibility var(--dur-fast);
+  z-index: var(--z-dropdown);
+}
+
+.dropdown.open .dropdown__menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.dropdown__menu-header {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-1);
+}
+
+.dropdown__menu-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-high);
+}
+
+.dropdown__menu-email {
+  font-size: 0.75rem;
+  color: var(--text-low);
+}
+
+.dropdown__menu button.sidebar__link {
+  width: 100%;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
 /* ----------------------------------- Modal -------------------------------------- */
 .modal-backdrop {
   position: fixed;

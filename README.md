@@ -11,9 +11,11 @@ Hotezo is two products in one platform:
   Super Admin, Hotel Admin, and Hotel Manager / Front Desk.
 
 This repository currently contains the **project skeleton** (folder structure, the custom
-lightweight MVC core, the design system, a styled placeholder landing page) and the **complete
-MySQL/MariaDB schema** (25 tables, migrations, and seed data). Feature modules (auth wiring,
-hotel/booking CRUD, commission calculation, dashboards) land on top of this in later steps.
+lightweight MVC core, the design system, a styled placeholder landing page), the **complete
+MySQL/MariaDB schema** (27 tables, migrations, and seed data), and the **auth + authorization
+system** (login, sessions, role levels, hotel scoping, per-user permission overrides). Feature
+modules (hotel/booking CRUD, commission calculation, the real dashboards) land on top of this in
+later steps.
 
 ## Tech stack
 
@@ -30,16 +32,18 @@ hotel/booking CRUD, commission calculation, dashboards) land on top of this in l
 public/            The only web-accessible folder (docroot). index.php is the front controller.
 app/
   Core/            Router, Database (PDO), Request, Response, View, Session, Csrf, Auth,
-                   Validator, Mailer, Model, Migration, Migrator, Seeder, App (service registry).
-  Controllers/      Thin controllers.
+                   Permission, RoleLevel, Validator, Mailer, Model, Migration, Migrator,
+                   Seeder, App (service registry).
+  Controllers/      AuthController, DashboardController, HomeController.
   Models/           Per-table models extending Core/Model.
   Services/         Business logic (BookingCalculator, InvoiceService, CommissionService, ...).
-  Middleware/        AuthMiddleware, RoleMiddleware, HotelScopeMiddleware.
-  Views/             layouts/, partials/, pages/, emails/.
-  Helpers/           Global helper functions (money, gst, fy_label, sanitize, ...).
-config/             app.php, database.php, mail.php — all read from .env.
+  Middleware/        AuthMiddleware, RoleMiddleware(minLevel), HotelScopeMiddleware.
+  Views/             layouts/ (public, admin, auth), partials/, pages/ (incl. auth/, admin/), emails/.
+  Helpers/           Global helper functions (money, gst, fy_label, sanitize, can, role_at_least, ...).
+config/             app.php, database.php, mail.php, auth.php, permissions.php — all read from .env
+                    except permissions.php (the role -> module -> action matrix).
 database/
-  migrations/        25 numbered migration files, one table each — see "Database schema" below.
+  migrations/        27 numbered migration files — see "Database schema" below.
   seeders/           RoleSeeder, OtaSeeder, SuperAdminSeeder, HotelSeeder, DatabaseSeeder.
 cron/               daily_digest.php, weekly_digest.php, retry_emails.php, purge_logs.php.
 routes/             web.php — route definitions.
@@ -97,6 +101,10 @@ cli                 CLI entry point: php cli migrate | migrate:rollback | migrat
    In production, point your web server's docroot at `public/` and enable `mod_rewrite`
    (an `.htaccess` is already in place for Apache) so all requests route through `index.php`.
 
+6. **Log in** at `http://localhost:8000/login` with the Super Admin credentials `php cli seed`
+   printed, and you'll land on the protected `/dashboard` sample route — see "Authentication &
+   authorization" below.
+
 ## Design system
 
 Dark-mode-first, glassmorphism, gradient-driven — think Linear/Stripe/Vercel dashboards, but
@@ -112,9 +120,12 @@ under the `hotezo-theme` key, and defaults to the visitor's OS preference otherw
 
 ## Database schema
 
-25 tables, all InnoDB, all with the standard audit columns (see Conventions below). Numbered
+27 tables, all InnoDB, all with the standard audit columns (see Conventions below). Numbered
 migration files in [database/migrations/](database/migrations/) create them in this dependency
-order — each file's doc comment explains any non-obvious modeling decision.
+order — each file's doc comment explains any non-obvious modeling decision. `0026`/`0027` are
+`ALTER TABLE` migrations on top of the original 25 (added for the auth/authorization system, see
+below): `0026` adds `hotel_id` to `user_permissions` so overrides can be hotel-scoped, `0027` adds
+`failed_login_attempts`/`locked_until` to `users` for login rate-limiting.
 
 | Area | Tables |
 | --- | --- |
@@ -141,10 +152,102 @@ Worth knowing before extending it:
   every `NULL` as distinct for `UNIQUE KEY` purposes, so the DB alone won't stop two global rows
   for the same key — allocate/create through a SELECT-then-INSERT, not an INSERT relying on a
   duplicate-key error. Each migration file's comment flags this where it applies.
-- **`roles.level` runs 0 (highest authority) to 5 (lowest)** — `0 = super_admin` down to
-  `5 = read_only_viewer`. See `database/seeders/RoleSeeder.php` for all 10 seeded roles.
+- **`roles.level` runs 0 (lowest authority) to 5 (highest)** — `5 = super_admin` down to
+  `0 = read_only`. See "Authentication & authorization" below for the full role table.
 - **`bookings.rooms` is a JSON array** of room lines (room, rate plan, nightly rate, nights,
   subtotal) since one booking can span multiple physical rooms.
+
+## Authentication & authorization
+
+### Roles
+
+10 roles across 5 levels (higher level = more power). Level alone doesn't fully determine access
+— the four level-2 roles differ by *module*, not seniority; see the permission matrix below.
+
+| Role | Level | Scope |
+| --- | --- | --- |
+| `super_admin` | 5 | Bypasses every rule. Full system access. |
+| `admin` | 4 | Full management of users, hotels, and OTAs — across *all* hotels. |
+| `hotel_manager` | 3 | Full operational control, but only for hotels they're assigned to. |
+| `revenue_manager` | 2 | Financial data and revenue reports. |
+| `ota_manager` | 2 | OTA relationships and commissions. |
+| `reservation_manager` | 2 | Bookings and guest invoices. |
+| `accounts` | 2 | Settlements, billing, and invoicing. |
+| `front_desk` | 1 | Creates bookings, generates invoices, handles check-in/check-out. |
+| `reception` | 1 | Creates bookings. **Default role for new users** (`config('auth.default_role')`). |
+| `read_only` | 0 | View-only — no create, edit, or delete anywhere. |
+
+`admin` (level 4) and `super_admin` (level 5) see every hotel; everyone else is restricted to the
+hotels listed in `user_hotels` for that user (`App\Core\Auth::hasGlobalHotelAccess()`).
+
+### Login
+
+`GET /login` / `POST /login` / `POST /logout` (`app/Controllers/AuthController.php`,
+[app/Views/pages/auth/login.php](app/Views/pages/auth/login.php)). Split-screen glassmorphism —
+an animated gradient hero on the left (`layouts/auth.php`, no nav/footer chrome), the form on the
+right. Behavior:
+
+- **Bcrypt** password verification against `users.password_hash`.
+- Blocks login for `status != 'active'` or `is_deleted = 1` accounts, with the *same* generic
+  "email or password incorrect" message as a wrong password — avoids revealing which accounts
+  exist or are disabled.
+- **Rate-limited**: `config('auth.max_login_attempts')` (default 5) failures locks the account for
+  `config('auth.lockout_minutes')` (default 15) via `users.failed_login_attempts` /
+  `locked_until`. This is account-scoped, not IP-scoped — simple and effective, but it does mean
+  someone who only knows a valid email can lock that account out; add IP throttling too if that
+  becomes a real concern.
+- **Remember me**: a `userId.token` cookie (`Auth::REMEMBER_COOKIE`), SHA-256 hash of the token
+  stored in `users.remember_token`, verified with `hash_equals()`. Checked once per request via
+  `Auth::attemptRememberLogin()` in `app/bootstrap.php`, cleared (cookie + DB) on logout.
+- CSRF-protected, flashed friendly errors, `old('email')` repopulates the form on failure.
+
+### Middleware
+
+- **`AuthMiddleware`** — must be logged in, else redirect to `/login` (or `401` for AJAX/JSON).
+- **`RoleMiddleware(minLevel)`** — coarse route gate on role level, e.g.
+  `[RoleMiddleware::class, RoleLevel::ADMIN]`. Good for "must be at least X"; can't by itself
+  distinguish same-level roles (that's what `can()` is for).
+- **`HotelScopeMiddleware`** — sets `$request->scope('hotel_ids')` to `null` (unrestricted, levels
+  4-5) or the caller's actual hotel ID array (possibly empty) for everyone else. Controllers use
+  this to filter every hotel-scoped query.
+
+### Permissions: the `can()` helper
+
+`App\Core\Permission::check($module, $action, $hotelId = null)`, exposed as a `can()` global
+helper for use directly in views:
+
+```php
+<?php if (can('bookings', 'create')): ?>
+  <a href="..." class="btn btn-primary">+ New Booking</a>
+<?php endif; ?>
+```
+
+Resolution order:
+
+1. **Super Admin bypass** — level 5 always passes.
+2. **Hotel scope** — if `$hotelId` is given and the caller isn't level 4+, it must be in their
+   `user_hotels`, or the check fails outright.
+3. **Per-user override** — `user_permissions` (`permission_key` = `"{module}.{action}"`), checked
+   hotel-specific first, then global (`hotel_id IS NULL`) as a fallback.
+4. **Role default** — `config('permissions.php')`, a `role -> module -> [actions]` matrix mirroring
+   the role table above.
+
+`role_at_least(int $level)` is the equivalent level-only guard, e.g.
+`role_at_least(RoleLevel::ADMIN)`. Neither directive requires Blade — this project uses plain PHP
+templates, so `can()`/`role_at_least()` are the "`@can`/`@role`" of this codebase.
+
+**Role-management rule**: `Permission::canManageRoleLevel($targetRoleLevel)` enforces "a user can
+only create/manage users with a role level lower than their own" (Super Admin exempt). No user
+CRUD UI exists yet — this is ready for the Users module to call once it lands.
+
+### Sample protected route
+
+`GET /dashboard` (`app/Controllers/DashboardController.php`,
+[app/Views/pages/admin/dashboard.php](app/Views/pages/admin/dashboard.php)) is gated by all three
+middleware (`AuthMiddleware`, `[RoleMiddleware::class, RoleLevel::READ_ONLY]`,
+`HotelScopeMiddleware`) and renders the caller's name/role/level, only the hotels their scope
+allows, and a `can('bookings', 'create')`-gated "New Booking" button — a working end-to-end demo
+of the whole stack.
 
 ## Conventions
 
@@ -157,18 +260,13 @@ Worth knowing before extending it:
   controllers stay thin.
 - Every form is CSRF-protected (`csrf_field()` / `Csrf::verify()`); every query is a prepared
   statement (`App\Core\Database`); all output is escaped with `e()`.
-- Non-super-admin users are scoped to their hotel via `HotelScopeMiddleware` and
-  `$request->scope('hotel_id')`.
+- Non-admin users (level < `RoleLevel::ADMIN`) are scoped to their assigned hotels via
+  `HotelScopeMiddleware` and `$request->scope('hotel_ids')` — see "Authentication &
+  authorization" above.
 
 ## What's next
 
-Auth/RBAC route wiring (login/logout controllers, permission checks), the booking flow and
-commission/GST calculation services, the three role-based dashboards, and PDF invoice generation
-— each arrives as its own module on top of this schema.
-
-**Known gap to close when Auth/RBAC is wired up:** `App\Core\Auth::login()` currently reads a
-single `$user['hotel_id']`, but the schema models hotel assignment as multi-hotel
-(`users.assigned_hotels` JSON cache + the `user_hotels` pivot table, per
-`users.hotel_assignment_type`). `Auth` was written before this schema existed and needs a small
-update — reading from `user_hotels` (or `assigned_hotels`) instead of a nonexistent `hotel_id`
-column — once login is actually implemented.
+User management (create/edit users — enforcing `Permission::canManageRoleLevel()`), the real
+hotel/booking CRUD, commission/GST calculation services, the three role-based dashboards built out
+beyond the sample, and PDF invoice generation — each arrives as its own module on top of this
+foundation.

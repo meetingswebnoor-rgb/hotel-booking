@@ -1,8 +1,11 @@
 <?php
 /**
  * @var string $pageTitle
+ * @var array<string, mixed>|null $user
  */
 $pageTitle ??= 'Dashboard';
+$user ??= null;
+$initial = $user !== null ? strtoupper(mb_substr((string) $user['full_name'], 0, 1)) : '?';
 ?>
 <header class="topbar">
   <div class="flex-center gap-4">
@@ -22,6 +25,24 @@ $pageTitle ??= 'Dashboard';
       </svg>
     </button>
 
-    <div class="avatar" title="Signed in user" aria-hidden="true">H</div>
+    <?php if ($user !== null): ?>
+      <div class="dropdown">
+        <button type="button" class="avatar" data-dropdown-trigger title="<?= e((string) $user['full_name']) ?>">
+          <?= e($initial) ?>
+        </button>
+        <div class="dropdown__menu glass">
+          <div class="dropdown__menu-header">
+            <div class="dropdown__menu-name"><?= e((string) $user['full_name']) ?></div>
+            <div class="dropdown__menu-email"><?= e((string) $user['email']) ?></div>
+          </div>
+          <form method="POST" action="<?= route('logout') ?>">
+            <?= csrf_field() ?>
+            <button type="submit" class="sidebar__link">Sign out</button>
+          </form>
+        </div>
+      </div>
+    <?php else: ?>
+      <div class="avatar" aria-hidden="true">?</div>
+    <?php endif; ?>
   </div>
 </header>

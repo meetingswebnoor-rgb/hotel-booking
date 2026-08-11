@@ -10,20 +10,22 @@ use App\Core\Request;
 use App\Core\Response;
 
 /**
- * Route usage: ['middleware' => [[RoleMiddleware::class, 'super_admin', 'hotel_admin']]]
+ * Coarse route-level gate on role level. Route usage:
+ *   [[RoleMiddleware::class, RoleLevel::ADMIN]]
+ *
+ * For fine-grained, module-specific checks use App\Core\Permission
+ * (the can() helper) instead — level alone can't distinguish e.g.
+ * Revenue Manager from OTA Manager, since both are level 2.
  */
 final class RoleMiddleware implements MiddlewareInterface
 {
-    private array $roles;
-
-    public function __construct(string ...$roles)
+    public function __construct(private readonly int $minLevel)
     {
-        $this->roles = $roles;
     }
 
     public function handle(Request $request, callable $next): Response
     {
-        if (!Auth::check() || !Auth::hasRole(...$this->roles)) {
+        if (!Auth::hasMinLevel($this->minLevel)) {
             if ($request->isAjax()) {
                 return Response::json(['message' => 'Forbidden.'], 403);
             }

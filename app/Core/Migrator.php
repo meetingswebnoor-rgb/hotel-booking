@@ -126,18 +126,24 @@ final class Migrator
     }
 
     /**
-     * Drops every table this migration set knows about and re-runs
-     * migrate() from a clean slate.
+     * Drops every table currently in the database and re-runs
+     * migrate() from a clean slate. Deliberately introspects the real
+     * schema (SHOW TABLES) rather than calling each migration's
+     * down() in reverse — that would break the moment a migration is
+     * added that's never actually been applied yet (down() assumes
+     * up() already ran). Safe here because this database is dedicated
+     * entirely to this migration set.
      */
     public function fresh(): void
     {
         $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
 
-        foreach (array_reverse($this->files()) as $file) {
-            $this->load($file)->down($this->pdo);
+        $tables = $this->pdo->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
+
+        foreach ($tables as $table) {
+            $this->pdo->exec("DROP TABLE IF EXISTS `{$table}`");
         }
 
-        $this->pdo->exec('DROP TABLE IF EXISTS migrations');
         $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
 
         $this->ensureMigrationsTable();

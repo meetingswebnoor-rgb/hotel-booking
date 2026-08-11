@@ -21,7 +21,7 @@ final class AuthMiddleware implements MiddlewareInterface
 
             Session::flash('error', 'Please log in to continue.');
 
-            return Response::redirect('/login');
+            return Response::redirect(route('login'));
         }
 
         return $next($request);

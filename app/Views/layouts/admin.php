@@ -21,7 +21,7 @@ use App\Core\View;
   <?= partial('sidebar', ['active' => $active ?? '']) ?>
 
   <div class="app-main">
-    <?= partial('topbar', ['pageTitle' => $pageTitle ?? ($title ?? 'Dashboard')]) ?>
+    <?= partial('topbar', ['pageTitle' => $pageTitle ?? ($title ?? 'Dashboard'), 'user' => $user ?? null]) ?>
 
     <?php if (View::hasSection('breadcrumbs')): ?>
       <div class="container mt-4"><?= View::yieldSection('breadcrumbs') ?></div>
