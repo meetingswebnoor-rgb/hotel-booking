@@ -1,0 +1,221 @@
+/* ==========================================================================
+   HOTEZO APP CSS
+   Imports the design system + components, then page-level layout that
+   isn't reusable enough to be a "component".
+   ========================================================================== */
+
+@import url('design-system.css');
+@import url('components.css');
+
+/* ------------------------------- Public nav/footer --------------------------- */
+.public-nav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-nav);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-6);
+  background: var(--overlay);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.public-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+}
+
+.public-nav__logo {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--gradient-primary);
+}
+
+.public-nav__links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.public-nav__links a {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-med);
+  transition: color var(--dur-fast);
+}
+
+.public-nav__links a:hover {
+  color: var(--text-high);
+}
+
+.public-footer {
+  border-top: 1px solid var(--border);
+  padding: var(--space-16) 0 var(--space-8);
+  margin-top: var(--space-20);
+  color: var(--text-low);
+  font-size: 0.875rem;
+}
+
+.public-footer__grid {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(3, 1fr);
+  gap: var(--space-8);
+}
+
+.public-footer__col h4 {
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-med);
+  margin-bottom: var(--space-3);
+}
+
+.public-footer__col a {
+  display: block;
+  padding: var(--space-1) 0;
+  transition: color var(--dur-fast);
+}
+
+.public-footer__col a:hover {
+  color: var(--text-high);
+}
+
+@media (max-width: 720px) {
+  .public-nav__links {
+    display: none;
+  }
+
+  .public-footer__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ----------------------------------- Hero ------------------------------------- */
+.hero {
+  position: relative;
+  padding: var(--space-20) 0 var(--space-16);
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: -220px;
+  left: 50%;
+  width: 900px;
+  height: 560px;
+  transform: translateX(-50%);
+  background: radial-gradient(closest-side, rgba(99, 102, 241, 0.35), transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: var(--space-6);
+}
+
+.hero__title {
+  max-width: 780px;
+  margin-bottom: var(--space-6);
+}
+
+.hero__subtitle {
+  max-width: 560px;
+  font-size: 1.125rem;
+  margin-bottom: var(--space-8);
+}
+
+.hero__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.hero__stats {
+  display: flex;
+  gap: var(--space-10);
+  margin-top: var(--space-16);
+  flex-wrap: wrap;
+}
+
+.hero__stat-value {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 600;
+}
+
+.hero__stat-label {
+  font-size: 0.875rem;
+  color: var(--text-med);
+}
+
+/* -------------------------------- Feature section -------------------------------- */
+.section {
+  padding: var(--space-20) 0;
+}
+
+.section__header {
+  max-width: 640px;
+  margin: 0 auto var(--space-12);
+  text-align: center;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-6);
+}
+
+.feature-card {
+  padding: var(--space-8);
+}
+
+.feature-card__icon {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  background: var(--gradient-primary-soft);
+  color: var(--color-primary-2);
+  margin-bottom: var(--space-5);
+}
+
+.feature-card h3 {
+  margin-bottom: var(--space-2);
+}
+
+@media (max-width: 900px) {
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------ Component showcase (dev) ---------------------------- */
+.showcase-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-5);
+}
