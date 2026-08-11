@@ -116,6 +116,19 @@
   padding: 0;
 }
 
+/*
+ * The `hidden` attribute must always win over a component's own
+ * `display` (flex/grid/etc.) — otherwise `el.hidden = true` in JS
+ * silently does nothing on any element whose class sets `display`,
+ * since an author rule of equal specificity beats the UA's default
+ * `[hidden] { display: none }`. Found via real-browser testing: the
+ * confirm-dialog modal and dashboard empty-states were both stuck
+ * visible despite JS correctly setting `hidden`.
+ */
+[hidden] {
+  display: none !important;
+}
+
 html {
   -webkit-text-size-adjust: 100%;
   scroll-behavior: smooth;

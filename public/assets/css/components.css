@@ -646,6 +646,9 @@ table.table {
 
 .topbar__menu-btn {
   display: none;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   color: var(--text-med);
 }
 
