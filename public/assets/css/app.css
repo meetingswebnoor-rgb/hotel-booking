@@ -684,3 +684,233 @@
     width: 100vw;
   }
 }
+
+/* ------------------------------- Hotel management -------------------------------- */
+.form-narrow {
+  max-width: 760px;
+}
+
+.hotel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-6);
+}
+
+.hotel-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.hotel-card__image {
+  position: relative;
+  height: 160px;
+  background: var(--gradient-primary-soft);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: var(--space-4);
+}
+
+.hotel-card__placeholder-icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 40px;
+  height: 40px;
+  color: var(--text-low);
+}
+
+.hotel-card__status {
+  position: relative;
+}
+
+.hotel-card__body {
+  padding: var(--space-5) var(--space-6) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.hotel-card__name {
+  font-size: 1.15rem;
+}
+
+.hotel-card__location {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+  color: var(--text-med);
+}
+
+.hotel-card__stats {
+  display: flex;
+  gap: var(--space-6);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+
+.hotel-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hotel-card__stat strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.hotel-card__stat span {
+  font-size: 0.75rem;
+  color: var(--text-low);
+}
+
+/* Commission-percent slider (5–50%) on the hotel Details form */
+.range {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--surface);
+}
+
+.range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--surface);
+}
+
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+}
+
+.hotel-photo-preview {
+  width: 100%;
+  max-width: 320px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  margin-bottom: var(--space-3);
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--space-3);
+}
+
+.gallery-thumb {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.gallery-thumb img {
+  width: 100%;
+  height: 90px;
+  object-fit: cover;
+}
+
+.gallery-thumb__remove {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(239, 68, 68, 0.85);
+  transform: translateY(100%);
+  transition: transform var(--dur-fast) var(--ease-out-3);
+}
+
+.gallery-thumb__remove input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.gallery-thumb:hover .gallery-thumb__remove,
+.gallery-thumb:has(input:checked) .gallery-thumb__remove {
+  transform: translateY(0);
+}
+
+.gallery-thumb:has(input:checked) img {
+  opacity: 0.4;
+}
+
+/* "Coming Soon" tab placeholders (Inventory, Settings) */
+.coming-soon {
+  position: relative;
+  overflow: hidden;
+  padding: var(--space-16) var(--space-6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.coming-soon__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-full);
+  background: var(--gradient-primary-soft);
+  color: var(--color-primary-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.coming-soon__calendar {
+  position: absolute;
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, 140%);
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--space-2);
+  opacity: 0.16;
+  filter: blur(0.5px);
+  pointer-events: none;
+}
+
+.coming-soon__calendar span {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  background: var(--gradient-primary);
+}

@@ -77,6 +77,25 @@
 .btn-icon { padding: 0.625rem; border-radius: var(--radius-full); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
 
+/* Inline text-style action, for dense table rows (room/rate-plan edit & remove)
+   where a full .btn would be too heavy visually. */
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary-2);
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+.link-btn--danger {
+  color: var(--color-rose);
+}
+
 /* -------------------------------- Form fields -------------------------------- */
 .field {
   display: flex;

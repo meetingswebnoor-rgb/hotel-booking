@@ -503,6 +503,87 @@ server-side, the column header included — when `can('reports', 'view')`. The p
 column stays visible to anyone who can view bookings at all, since it's the same operational
 figure front desk needs to collect payment, not a portfolio-level margin figure.
 
+## Hotel management
+
+`GET /hotels` is a server-rendered glass card grid (hero image, city, room count, booking count,
+commission %, status) — deliberately *not* the AJAX/JSON/pagination treatment the bookings list
+gets, since hotel counts are small and nothing was asked for in the way of filtering. Clicking a
+card opens `GET /hotels/{id}`, a single tabbed hub page: **Details, Rooms, Rate Plans, Inventory,
+Bookings, Guests, Invoices, Staff, Reports, Settings**. Every tab a role can't reach is omitted
+server-side, not just hidden — same convention as the dashboard's reports-gated figures.
+
+### Tabs are server-rendered, switched client-side
+
+All ten tabs' content renders on the same request; `ui.js`'s existing `initTabs()` toggles which
+`[data-tab-panel]` is visible, no extra fetch per click. `hotel-hub.js` layers two things on top:
+it reads `?tab=` on load and clicks the matching tab (so redirecting back from a room/rate-plan
+save reopens on the right tab instead of bouncing to Details), and it rewrites `?tab=` as the user
+clicks between tabs (so a refresh — or a shared link — lands where they left it).
+
+### Rooms & Rate Plans: modal CRUD, not sub-pages
+
+Each existing room/rate plan gets its own pre-filled edit modal (`partials/admin/room-modal.php`,
+`rate-plan-modal.php`) rather than one shared modal populated by JS — hotel room counts are small
+enough that this doesn't bloat the page, and it means zero JS is needed to open an edit form with
+the right values already in it. Forms POST and redirect back to the same tab; there's no
+inline/AJAX save here, unlike the bookings list.
+
+### Bookings tab reuses the bookings list — literally
+
+`partials/admin/bookings-embed.php` is the bookings list's filter bar (minus the now-redundant
+Hotel dropdown), stats strip, table, and drawer, and it's driven by the *same*
+`booking-list.js` and the *same* `GET /bookings/data` endpoint as the standalone `/bookings` page.
+A `data-locked-hotel-id` wrapper tells the script to force that hotel into every query and skip
+URL-state syncing (the embedded view shares the hub's URL with the tab param — letting it rewrite
+the query string would silently drop `?tab=bookings` and knock a refresh back to Details).
+
+### Guests: derived, not stored
+
+There's no `guests` table — guests only exist as fields on `bookings`. The tab runs
+`SELECT ... GROUP BY guest_mobile` (mobile is the one reliably-unique guest identifier captured
+today), with `MAX()` wrapping every non-grouped column so the query stays valid under
+`ONLY_FULL_GROUP_BY`. The spec's **Company** column has no data source anywhere in the schema — it
+renders as `—` rather than inventing a value, with a one-line note in the tab explaining why.
+
+### Invoices & Staff: real queries, naturally empty today
+
+Both tabs query real tables (`invoices`, `user_hotels` joined to `users`/`roles`) — there's no
+placeholder logic. They render genuine empty states right now because nothing populates
+`invoices` yet (invoice generation is a future module) and no staff have been assigned to hotels
+in the seed data, not because the tabs are stubbed.
+
+### Inventory & Settings: honest placeholders
+
+Both are explicitly out of scope for this module. Inventory gets a decorative blurred calendar
+grid behind a "Coming Soon" badge (`partials/admin/coming-soon.php`, `calendar: true`) so the tab
+still looks intentional rather than broken; Settings gets the same badge without the teaser.
+
+### File uploads
+
+`App\Core\FileUpload` is new, reusable Core infrastructure (mirrors `Migration`/`Seeder` as a
+small first-party primitive) — validates actual file content via `finfo` (never the client-sent
+mime type or filename), enforces a 5MB cap, and always writes under a fresh UUID name to
+`public/assets/uploads/hotels/{hotel_id}/`. The hero image and gallery are the first upload flow
+in the app; nothing before this needed one.
+
+### "Hotel Admin" maps to `hotel_manager`
+
+The product brief's "Hotel Admin edits only their own hotel" describes a role that doesn't exist
+by that name in the seeded 10-role set — it's exactly what `hotel_manager` (level 3) already does
+in `config/permissions.php` (`view`, `edit`; no `create`, no `delete`), so no new role was added.
+Both the create-hotel gate and the delete button (and its route, independently, in case someone
+scripts a POST directly) check `can('hotels', 'create' | 'delete')`, which only the `admin` role
+grants.
+
+### Cascading soft delete
+
+`App\Services\HotelService::delete()` soft-deletes the hotel and cascades to exactly the five
+tables the spec named — rooms, bookings, guest invoices, staff assignments (`user_hotels`), rate
+plans — each `WHERE hotel_id = ? AND is_deleted = 0`, so already-deleted rows keep their original
+`deleted_at`/`deleted_by` instead of being overwritten. It's a new, from-scratch pattern (no prior
+cascade delete existed anywhere in the codebase to mirror) and it's the first `Service` whose job
+is orchestration rather than money math.
+
 ## Conventions
 
 - All money is stored as `DECIMAL(12,2)` INR and formatted with the `money()` helper (Indian
@@ -520,10 +601,11 @@ figure front desk needs to collect payment, not a portfolio-level margin figure.
 
 ## What's next
 
-User management (create/edit users — enforcing `Permission::canManageRoleLevel()`), hotel/room/
-rate-plan management (bookings can now be entered against existing inventory, but that inventory
-itself has no create/edit UI yet — it's seeder-only), settlements, and PDF invoice generation —
-each arrives as its own module inside the app shell.
+User management (create/edit users — enforcing `Permission::canManageRoleLevel()`, and giving the
+Hotel hub's Staff tab a way to actually assign someone rather than only list existing
+`user_hotels` rows), the Inventory calendar, settlements, and PDF invoice generation (which would
+finally give the Hotel hub's Invoices tab real rows) — each arrives as its own module inside the
+app shell.
 
 **OTA list note:** `otas` seeds 10 rows, not 9 — `Hostelworld` (from the original schema-module
 spec) and `Hotels.com` (named later, for the booking form) are both kept rather than one replacing

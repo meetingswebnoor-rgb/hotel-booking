@@ -6,6 +6,7 @@ use App\Controllers\AuthController;
 use App\Controllers\BookingController;
 use App\Controllers\DashboardController;
 use App\Controllers\HomeController;
+use App\Controllers\HotelController;
 use App\Controllers\HotelFilterController;
 use App\Controllers\NotificationController;
 use App\Controllers\SearchController;
@@ -48,6 +49,26 @@ return function (Router $router): void {
         $router->get('/{id}/detail', [BookingController::class, 'detail'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.detail');
         $router->post('/{id}', [BookingController::class, 'update'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.update');
         $router->get('/{id}/voucher', [BookingController::class, 'voucher'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.voucher');
+    });
+
+    // Static-looking sub-paths (create, etc.) must be registered before
+    // the dynamic /{id} route below — the router matches in order and
+    // {id} greedily matches any single segment, "create" included.
+    $router->group(['prefix' => '/hotels', 'middleware' => [AuthMiddleware::class, HotelScopeMiddleware::class]], function (Router $router): void {
+        $router->get('/', [HotelController::class, 'index'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'hotels.index');
+        $router->get('/create', [HotelController::class, 'create'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.create');
+        $router->post('/', [HotelController::class, 'store'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.store');
+        $router->get('/{id}', [HotelController::class, 'show'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'hotels.show');
+        $router->post('/{id}', [HotelController::class, 'update'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.update');
+        $router->post('/{id}/delete', [HotelController::class, 'destroy'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.destroy');
+
+        $router->post('/{id}/rooms', [HotelController::class, 'storeRoom'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rooms.store');
+        $router->post('/{id}/rooms/{roomId}', [HotelController::class, 'updateRoom'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rooms.update');
+        $router->post('/{id}/rooms/{roomId}/delete', [HotelController::class, 'destroyRoom'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rooms.destroy');
+
+        $router->post('/{id}/rate-plans', [HotelController::class, 'storeRatePlan'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rate-plans.store');
+        $router->post('/{id}/rate-plans/{planId}', [HotelController::class, 'updateRatePlan'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rate-plans.update');
+        $router->post('/{id}/rate-plans/{planId}/delete', [HotelController::class, 'destroyRatePlan'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rate-plans.destroy');
     });
 
     // App shell endpoints — used by every admin page's topbar/sidebar.

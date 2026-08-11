@@ -24,6 +24,7 @@ const SEARCH_DEBOUNCE_MS = 400;
 let state = { page: 1, per_page: 25 };
 let searchTimer = null;
 let currentDrawerBookingId = null;
+let lockedHotelId = null;
 
 function formatMoney(value) {
   return `₹${formatIndianCurrency(value, 2)}`;
@@ -48,6 +49,12 @@ function readStateFromUrl() {
 }
 
 function writeStateToUrl() {
+  // Embedded on the hotel hub's Bookings tab, this list shares the URL
+  // with the tab's own ?tab= query param — rewriting it here would
+  // silently drop that and knock the user back to the Details tab on
+  // refresh, so the embedded view just keeps filter state in memory.
+  if (lockedHotelId) return;
+
   const params = new URLSearchParams();
 
   FILTER_KEYS.forEach((key) => {
@@ -363,6 +370,7 @@ function initFilters(form) {
 
   document.querySelector('[data-clear-filters]')?.addEventListener('click', () => {
     FILTER_KEYS.forEach((key) => delete state[key]);
+    if (lockedHotelId) state.hotel_id = lockedHotelId;
     state.page = 1;
     applyStateToControls(form);
     writeStateToUrl();
@@ -397,7 +405,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const filterBar = document.querySelector('.filter-bar');
   if (!filterBar) return;
 
-  state = readStateFromUrl();
+  lockedHotelId = document.querySelector('[data-locked-hotel-id]')?.dataset.lockedHotelId || null;
+  state = lockedHotelId ? { page: 1, per_page: 25, hotel_id: lockedHotelId } : readStateFromUrl();
   applyStateToControls(filterBar);
 
   initFilters(filterBar);
