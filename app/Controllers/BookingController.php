@@ -25,41 +25,197 @@ final class BookingController
 {
     private const ROOM_TYPES = ['Single', 'Double', 'Suite', 'Deluxe'];
 
+    private const STATUS_OPTIONS = [
+        'pending' => 'Pending',
+        'confirmed' => 'Confirmed',
+        'checked_in' => 'Checked In',
+        'checked_out' => 'Checked Out',
+        'cancelled' => 'Cancelled',
+        'rejected' => 'Rejected',
+        'no_show' => 'No Show',
+    ];
+
+    private const PAYMENT_STATUS_OPTIONS = [
+        'pending' => 'Pending',
+        'paid' => 'Paid',
+        'hold' => 'Hold',
+        'disputed' => 'Disputed',
+    ];
+
+    private const PER_PAGE_OPTIONS = [25, 50, 100];
+
+    /**
+     * Renders the filter bar + skeleton shell only. GET /bookings/data
+     * (below) does the actual work once the page's JS calls it.
+     */
     public function index(Request $request): Response
     {
-        $hotelIds = $request->scope('hotel_ids');
-        $page = max(1, (int) $request->query('page', 1));
-        $perPage = 20;
-        $offset = ($page - 1) * $perPage;
-
-        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'b.hotel_id');
-
-        $total = (int) Database::query(
-            "SELECT COUNT(*) FROM bookings b WHERE b.is_deleted = 0 {$scopeSql}",
-            $scopeParams
-        )->fetchColumn();
-
-        $sql = "SELECT b.id, b.booking_id, b.guest_name, b.checkin_date, b.checkout_date, b.status,
-                       b.total_room_rent, h.name AS hotel_name
-                FROM bookings b JOIN hotels h ON h.id = b.hotel_id
-                WHERE b.is_deleted = 0 {$scopeSql}
-                ORDER BY b.created_at DESC
-                LIMIT {$perPage} OFFSET {$offset}";
-        $bookings = Database::query($sql, $scopeParams)->fetchAll();
+        if (!can('bookings', 'view')) {
+            return Response::html(view('errors/403', [], 'public'), 403);
+        }
 
         $html = view('admin/bookings/index', [
             'title' => 'Bookings',
             'active' => 'bookings',
             'pageTitle' => 'Bookings',
             'user' => Auth::user(),
-            'bookings' => $bookings,
             'canCreate' => can('bookings', 'create'),
-            'page' => $page,
-            'totalPages' => max(1, (int) ceil($total / $perPage)),
-            'total' => $total,
+            'canViewReports' => can('reports', 'view'),
+            'hotels' => $this->filterableHotels($request),
+            'otas' => Database::all('otas', ['is_deleted' => 0, 'status' => 'active'], '*', 'name'),
+            'statusOptions' => self::STATUS_OPTIONS,
+            'paymentStatusOptions' => self::PAYMENT_STATUS_OPTIONS,
+            'perPageOptions' => self::PER_PAGE_OPTIONS,
         ], 'admin');
 
         return Response::html($html);
+    }
+
+    /**
+     * GET /bookings/data — the paginated, filtered JSON the list page
+     * fetches. Filters combine (AND); hotel scope is the same
+     * "narrow, never widen" pattern as the dashboard's drill-down.
+     */
+    public function data(Request $request): Response
+    {
+        if (!can('bookings', 'view')) {
+            return Response::json(['rows' => [], 'total' => 0], 403);
+        }
+
+        $hotelIds = $this->effectiveHotelIds($request);
+        $canViewReports = can('reports', 'view');
+        $filters = $this->parseFilters($request);
+
+        $page = max(1, (int) $request->query('page', 1));
+        $requestedPerPage = (int) $request->query('per_page', 25);
+        $perPage = in_array($requestedPerPage, self::PER_PAGE_OPTIONS, true) ? $requestedPerPage : 25;
+        $offset = ($page - 1) * $perPage;
+
+        [$where, $params] = $this->buildFilterWhere($hotelIds, $filters);
+
+        $total = (int) Database::query("SELECT COUNT(*) FROM bookings b WHERE {$where}", $params)->fetchColumn();
+
+        $earningSelect = $canViewReports ? ', b.hotel_earning' : '';
+        $sql = "SELECT b.id, b.booking_id, b.guest_name, b.guest_mobile, b.checkin_date, b.checkout_date,
+                       b.nights, b.total_room_rent, b.status, b.ota_payment_status, b.adults, b.children,
+                       h.name AS hotel_name, o.name AS ota_name{$earningSelect}
+                FROM bookings b
+                JOIN hotels h ON h.id = b.hotel_id
+                LEFT JOIN otas o ON o.id = b.ota_id
+                WHERE {$where}
+                ORDER BY b.created_at DESC
+                LIMIT {$perPage} OFFSET {$offset}";
+        $rows = Database::query($sql, $params)->fetchAll();
+
+        $pageRevenue = 0.0;
+        $pageGuests = 0;
+
+        foreach ($rows as $row) {
+            $pageRevenue += (float) $row['total_room_rent'];
+            $pageGuests += (int) $row['adults'] + (int) $row['children'];
+        }
+
+        return Response::json([
+            'rows' => array_map(static function (array $row) use ($canViewReports): array {
+                $item = [
+                    'id' => $row['id'],
+                    'booking_id' => $row['booking_id'],
+                    'guest_name' => $row['guest_name'],
+                    'guest_mobile' => $row['guest_mobile'],
+                    'hotel_name' => $row['hotel_name'],
+                    'ota_name' => $row['ota_name'] ?? 'Direct',
+                    'checkin_date' => $row['checkin_date'],
+                    'checkout_date' => $row['checkout_date'],
+                    'nights' => (int) $row['nights'],
+                    'total_room_rent' => (float) $row['total_room_rent'],
+                    'status' => $row['status'],
+                    'ota_payment_status' => $row['ota_payment_status'],
+                    'guests' => (int) $row['adults'] + (int) $row['children'],
+                ];
+
+                if ($canViewReports) {
+                    $item['hotel_earning'] = (float) $row['hotel_earning'];
+                }
+
+                return $item;
+            }, $rows),
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => max(1, (int) ceil($total / $perPage)),
+            'can_view_reports' => $canViewReports,
+            'page_stats' => [
+                'count' => count($rows),
+                'revenue' => round($pageRevenue, 2),
+                'guests' => $pageGuests,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /bookings/{id}/detail — the full record for the row-click
+     * drawer. The commission/tax breakdown is only included when the
+     * caller has reports access, same gate as the dashboard.
+     */
+    public function detail(Request $request): Response
+    {
+        $booking = Database::first('bookings', ['id' => $request->param('id'), 'is_deleted' => 0]);
+
+        if ($booking === null) {
+            return Response::json(['message' => 'Not found.'], 404);
+        }
+
+        if (!can('bookings', 'view', $booking['hotel_id'])) {
+            return Response::json(['message' => 'Forbidden.'], 403);
+        }
+
+        $hotel = Database::first('hotels', ['id' => $booking['hotel_id']]);
+        $ota = $booking['ota_id'] !== null ? Database::first('otas', ['id' => $booking['ota_id']]) : null;
+        $canViewReports = can('reports', 'view', $booking['hotel_id']);
+
+        $payload = [
+            'id' => $booking['id'],
+            'booking_id' => $booking['booking_id'],
+            'guest_name' => $booking['guest_name'],
+            'guest_mobile' => $booking['guest_mobile'],
+            'guest_email' => $booking['guest_email'],
+            'hotel_name' => $hotel['name'] ?? '',
+            'ota_name' => $ota['name'] ?? 'Direct',
+            'source' => $booking['source'],
+            'booking_date' => $booking['booking_date'],
+            'checkin_date' => $booking['checkin_date'],
+            'checkout_date' => $booking['checkout_date'],
+            'nights' => (int) $booking['nights'],
+            'adults' => (int) $booking['adults'],
+            'children' => (int) $booking['children'],
+            'rooms' => json_decode((string) $booking['rooms'], true) ?: [],
+            'total_room_rent' => (float) $booking['total_room_rent'],
+            'status' => $booking['status'],
+            'ota_payment_status' => $booking['ota_payment_status'],
+            'payment_remarks' => $booking['payment_remarks'],
+            'internal_notes' => $booking['internal_notes'],
+            'can_view_reports' => $canViewReports,
+            'can_edit' => can('bookings', 'edit', $booking['hotel_id']),
+            'edit_url' => route('bookings.edit', ['id' => $booking['id']]),
+            'voucher_url' => route('bookings.voucher', ['id' => $booking['id']]),
+        ];
+
+        if ($canViewReports) {
+            $payload['financials'] = [
+                'hotel_gst' => (float) $booking['hotel_gst'],
+                'tds' => (float) $booking['tds'],
+                'tcs' => (float) $booking['tcs'],
+                'ota_commission' => (float) $booking['ota_commission'],
+                'hotezo_commission' => (float) $booking['hotezo_commission'],
+                'gst_on_commission' => (float) $booking['gst_on_commission'],
+                'total_commission_taxes' => (float) $booking['total_commission_taxes'],
+                'hotel_earning' => (float) $booking['hotel_earning'],
+                'hotel_collection' => (float) $booking['hotel_collection'],
+                'hotezo_collection' => (float) $booking['hotezo_collection'],
+            ];
+        }
+
+        return Response::json($payload);
     }
 
     public function create(Request $request): Response
@@ -76,6 +232,8 @@ final class BookingController
             'booking' => null,
             'hotels' => $this->allowedHotels(),
             'otas' => Database::all('otas', ['is_deleted' => 0, 'status' => 'active'], '*', 'name'),
+            'statusOptions' => self::STATUS_OPTIONS,
+            'paymentStatusOptions' => self::PAYMENT_STATUS_OPTIONS,
             'suggestedBookingId' => $this->suggestedBookingId(),
             'formAction' => route('bookings.store'),
         ], 'admin');
@@ -110,6 +268,8 @@ final class BookingController
             'booking' => $booking,
             'hotels' => $hotel !== null ? [$hotel] : [],
             'otas' => Database::all('otas', ['is_deleted' => 0, 'status' => 'active'], '*', 'name'),
+            'statusOptions' => self::STATUS_OPTIONS,
+            'paymentStatusOptions' => self::PAYMENT_STATUS_OPTIONS,
             'suggestedBookingId' => $booking['booking_id'],
             'formAction' => route('bookings.update', ['id' => $booking['id']]),
         ], 'admin');
@@ -260,8 +420,8 @@ final class BookingController
             'booking_date' => 'required',
             'checkin_date' => 'required',
             'checkout_date' => 'required',
-            'status' => 'required|in:pending,confirmed,checked_in,checked_out,cancelled,no_show,rejected',
-            'ota_payment_status' => 'required|in:pending,paid,hold,disputed',
+            'status' => 'required|in:' . implode(',', array_keys(self::STATUS_OPTIONS)),
+            'ota_payment_status' => 'required|in:' . implode(',', array_keys(self::PAYMENT_STATUS_OPTIONS)),
         ];
         $errors = Validator::make($request->all(), $rules)->errors();
 
@@ -453,6 +613,113 @@ final class BookingController
         }
 
         return sanitize($value);
+    }
+
+    /**
+     * The permission-based scope, further narrowed (never widened) by
+     * an optional ?hotel_id= filter — same pattern as the dashboard's
+     * drill-down.
+     *
+     * @return array<int, string>|null
+     */
+    private function effectiveHotelIds(Request $request): ?array
+    {
+        $scoped = $request->scope('hotel_ids');
+        $requested = $request->query('hotel_id');
+
+        if ($requested === null || $requested === '') {
+            return $scoped;
+        }
+
+        if ($scoped === null) {
+            return [$requested];
+        }
+
+        return in_array($requested, $scoped, true) ? [$requested] : $scoped;
+    }
+
+    /**
+     * Hotels for the filter bar's own dropdown — intersected with
+     * whatever the topbar's global hotel filter already narrowed to
+     * (HotelScopeMiddleware), so the list's filter never offers a
+     * hotel that would just come back with zero rows.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function filterableHotels(Request $request): array
+    {
+        $scopeIds = $request->scope('hotel_ids');
+        $allowed = $this->allowedHotels();
+
+        if ($scopeIds === null) {
+            return $allowed;
+        }
+
+        return array_values(array_filter($allowed, static fn (array $h): bool => in_array($h['id'], $scopeIds, true)));
+    }
+
+    /**
+     * @return array{ota_id: ?string, status: ?string, date_from: ?string, date_to: ?string, q: ?string}
+     */
+    private function parseFilters(Request $request): array
+    {
+        $otaId = (string) $request->query('ota_id', '');
+        $status = (string) $request->query('status', '');
+        $dateFrom = (string) $request->query('date_from', '');
+        $dateTo = (string) $request->query('date_to', '');
+        $q = trim((string) $request->query('q', ''));
+
+        return [
+            'ota_id' => $otaId !== '' ? $otaId : null,
+            'status' => array_key_exists($status, self::STATUS_OPTIONS) ? $status : null,
+            'date_from' => $dateFrom !== '' ? $dateFrom : null,
+            'date_to' => $dateTo !== '' ? $dateTo : null,
+            'q' => $q !== '' ? $q : null,
+        ];
+    }
+
+    /**
+     * Filters combine with AND. Date range filters on checkin_date —
+     * the natural "what's happening when" axis for an operational
+     * list (as opposed to booking_date, "when was this booked").
+     *
+     * @param array<int, string>|null $hotelIds
+     * @return array{0: string, 1: array<int, mixed>}
+     */
+    private function buildFilterWhere(?array $hotelIds, array $filters): array
+    {
+        [$scopeSql, $params] = Database::scopeCondition($hotelIds, 'b.hotel_id');
+        $where = "b.is_deleted = 0{$scopeSql}";
+
+        if ($filters['ota_id'] !== null) {
+            $where .= ' AND b.ota_id = ?';
+            $params[] = $filters['ota_id'];
+        }
+
+        if ($filters['status'] !== null) {
+            $where .= ' AND b.status = ?';
+            $params[] = $filters['status'];
+        }
+
+        if ($filters['date_from'] !== null) {
+            $where .= ' AND b.checkin_date >= ?';
+            $params[] = $filters['date_from'];
+        }
+
+        if ($filters['date_to'] !== null) {
+            $where .= ' AND b.checkin_date <= ?';
+            $params[] = $filters['date_to'];
+        }
+
+        if ($filters['q'] !== null) {
+            $where .= ' AND (b.guest_name LIKE ? OR b.booking_id LIKE ? OR b.guest_mobile LIKE ?)';
+            $like = '%' . $filters['q'] . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+        }
+
+        return [$where, $params];
     }
 
     /**

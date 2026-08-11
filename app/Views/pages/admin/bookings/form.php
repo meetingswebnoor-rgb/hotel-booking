@@ -11,26 +11,11 @@ use App\Core\View;
  * @var array<string, mixed>|null $booking
  * @var array<int, array<string, mixed>> $hotels
  * @var array<int, array<string, mixed>> $otas
+ * @var array<string, string> $statusOptions
+ * @var array<string, string> $paymentStatusOptions
  * @var string $suggestedBookingId
  * @var string $formAction
  */
-
-$statusOptions = [
-    'pending' => 'Pending',
-    'confirmed' => 'Confirmed',
-    'checked_in' => 'Checked In',
-    'checked_out' => 'Checked Out',
-    'cancelled' => 'Cancelled',
-    'rejected' => 'Rejected',
-    'no_show' => 'No Show',
-];
-
-$paymentStatusOptions = [
-    'pending' => 'Pending',
-    'paid' => 'Paid',
-    'hold' => 'Hold',
-    'disputed' => 'Disputed',
-];
 
 $errors = form_errors();
 

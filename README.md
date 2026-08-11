@@ -32,8 +32,8 @@ plan management, invoicing, settlements) land on top of this in later steps.
 
 ```
 public/            The only web-accessible folder (docroot). index.php is the front controller.
-  assets/js/         app.js, api.js, ui.js, confirm.js, dashboard.js, booking-form.js, format.js,
-                     animations.js, charts.js — ES modules, no build step.
+  assets/js/         app.js, api.js, ui.js, confirm.js, dashboard.js, booking-form.js,
+                     booking-list.js, format.js, animations.js, charts.js — ES modules, no build step.
   assets/css/        design-system.css, components.css, app.css (loaded everywhere), print.css
                      (loaded only by the print layout).
 app/
@@ -458,6 +458,50 @@ request that actually changes into that status.
 `BookingController::save()`) for queuing guest/hotel notifications once the email pipeline exists.
 Nothing sends today — the schema (`email_queue`, `notification_logs`) and the topbar's
 notifications bell are already real and waiting for a writer.
+
+## Bookings list
+
+`GET /bookings` renders a skeleton-first shell (filter bar, 4 stat cards, table); `GET
+/bookings/data` (`public/assets/js/booking-list.js`, same middleware) returns the actual filtered/
+paginated JSON. Row click fetches `GET /bookings/{id}/detail` into a slide-over drawer with the
+full financial breakdown.
+
+### Filters
+
+Hotel, OTA, Status, check-in date range, and a keyword search (guest name / booking ID / mobile,
+debounced 400ms) all combine with `AND` in `BookingController::buildFilterWhere()`. Every filter
+change writes to the URL via `history.replaceState` and re-fetches — reload the page, or send
+someone the URL, and you get back the exact same filtered view. Date range filters on
+`checkin_date` (what's happening when), not `booking_date` (when it was booked), as the more
+useful axis for an operational list.
+
+The filter bar's own **Hotel** dropdown is intersected with whatever the topbar's global hotel
+filter already narrowed the request to (`BookingController::filterableHotels()`) — so it only ever
+offers hotels that would actually return rows, rather than a filter combination that silently
+combines to zero results. `effectiveHotelIds()` then narrows (never widens) that scope further by
+whatever the dropdown picked, same "narrow-only" pattern as the dashboard's drill-down.
+
+### Stats strip
+
+Page Bookings/Revenue/Guests are literal sums of the rows on the *current page* (not gated behind
+`can('reports', 'view')` — they're just a sum of the same per-row Amount everyone with
+`bookings.view` can already see, so summing them exposes nothing new). Total Matching Filters is
+the query's real `COUNT(*)`, independent of pagination.
+
+### OTA "logos"
+
+No real OTA brand marks are bundled — no image pipeline, and reusing actual logos without license
+is worth avoiding regardless. `otaBadgeColor()` in `format.js` picks a deterministic color from the
+design system's palette based on the OTA name, rendered as a colored initial next to the name.
+Same OTA always gets the same color; no asset requests, no trademark risk.
+
+### Financial gating
+
+Same rule as the dashboard and the booking form: the **Hotel Earning** column (and the drawer's
+entire financial-breakdown section — GST, TDS, TCS, both commissions, collections) only render —
+server-side, the column header included — when `can('reports', 'view')`. The per-row **Amount**
+column stays visible to anyone who can view bookings at all, since it's the same operational
+figure front desk needs to collect payment, not a portfolio-level margin figure.
 
 ## Conventions
 

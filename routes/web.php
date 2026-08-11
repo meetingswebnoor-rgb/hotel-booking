@@ -39,11 +39,13 @@ return function (Router $router): void {
 
     $router->group(['prefix' => '/bookings', 'middleware' => [AuthMiddleware::class, HotelScopeMiddleware::class]], function (Router $router): void {
         $router->get('/', [BookingController::class, 'index'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.index');
+        $router->get('/data', [BookingController::class, 'data'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.data');
         $router->get('/create', [BookingController::class, 'create'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.create');
         $router->get('/check-id', [BookingController::class, 'checkId'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.check-id');
         $router->get('/rooms', [BookingController::class, 'roomsForHotel'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.rooms');
         $router->post('/', [BookingController::class, 'store'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.store');
         $router->get('/{id}/edit', [BookingController::class, 'edit'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.edit');
+        $router->get('/{id}/detail', [BookingController::class, 'detail'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.detail');
         $router->post('/{id}', [BookingController::class, 'update'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.update');
         $router->get('/{id}/voucher', [BookingController::class, 'voucher'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.voucher');
     });

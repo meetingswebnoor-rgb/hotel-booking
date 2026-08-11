@@ -9,7 +9,7 @@
 
 import { api } from './api.js';
 import { animateCountUp } from './animations.js';
-import { formatIndianCurrency } from './format.js';
+import { formatIndianCurrency, statusBadgeClass, statusLabel } from './format.js';
 import {
   createLineChart,
   createBarChart,
@@ -23,20 +23,6 @@ const POLL_INTERVAL_MS = 15000;
 const chartInstances = {};
 let drillDownHotelId = null;
 let pollTimer = null;
-
-const STATUS_BADGE = {
-  pending: 'badge--warning',
-  confirmed: 'badge--info',
-  checked_in: 'badge--success',
-  checked_out: 'badge--neutral',
-  cancelled: 'badge--danger',
-  no_show: 'badge--danger',
-  rejected: 'badge--danger',
-};
-
-function statusLabel(status) {
-  return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function renderTrend(el, kpi) {
   el.hidden = false;
@@ -190,7 +176,7 @@ function renderRecentBookings(rows, canViewReports) {
           <td>${row.guest_name}</td>
           <td>${row.hotel_name}</td>
           <td>${row.checkin_date}</td>
-          <td><span class="badge ${STATUS_BADGE[row.status] ?? 'badge--neutral'}">${statusLabel(row.status)}</span></td>
+          <td><span class="badge ${statusBadgeClass(row.status)}">${statusLabel(row.status)}</span></td>
           ${canViewReports ? `<td>₹${formatIndianCurrency(row.total_room_rent)}</td>` : ''}
         </tr>
       `
