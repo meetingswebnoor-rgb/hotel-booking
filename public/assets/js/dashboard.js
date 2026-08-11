@@ -9,6 +9,7 @@
 
 import { api } from './api.js';
 import { animateCountUp } from './animations.js';
+import { formatIndianCurrency } from './format.js';
 import {
   createLineChart,
   createBarChart,
@@ -22,18 +23,6 @@ const POLL_INTERVAL_MS = 15000;
 const chartInstances = {};
 let drillDownHotelId = null;
 let pollTimer = null;
-
-/** Mirrors the money() PHP helper's Indian digit grouping (1,00,000). */
-function formatIndianCurrency(value, decimals = 0) {
-  const negative = value < 0;
-  const fixed = Math.abs(value).toFixed(decimals);
-  const [intPart, decPart] = fixed.split('.');
-  const lastThree = intPart.slice(-3);
-  const rest = intPart.slice(0, -3);
-  const grouped = rest ? `${rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}` : lastThree;
-
-  return `${negative ? '-' : ''}${grouped}${decPart ? `.${decPart}` : ''}`;
-}
 
 const STATUS_BADGE = {
   pending: 'badge--warning',

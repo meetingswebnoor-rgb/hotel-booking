@@ -133,6 +133,30 @@ final class Database
     /**
      * @return array{0: string, 1: array<string, mixed>}
      */
+    /**
+     * Builds an " AND {$column} IN (...)" fragment for hotel-scoped
+     * queries. Shared by every controller that filters by
+     * $request->scope('hotel_ids') — first used in DashboardController,
+     * now also BookingController.
+     *
+     * @param array<int, string>|null $ids null = unrestricted (no clause); [] = "match nothing"
+     * @return array{0: string, 1: array<int, string>}
+     */
+    public static function scopeCondition(?array $ids, string $column): array
+    {
+        if ($ids === null) {
+            return ['', []];
+        }
+
+        if ($ids === []) {
+            return [' AND 1 = 0', []];
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($ids), '?'));
+
+        return [" AND {$column} IN ({$placeholders})", $ids];
+    }
+
     private static function buildWhere(array $conditions): array
     {
         if ($conditions === []) {

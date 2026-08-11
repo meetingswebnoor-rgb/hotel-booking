@@ -6,8 +6,13 @@ use App\Core\Database;
 use App\Core\Seeder;
 
 /**
- * 9 OTAs. Commission percentages are plausible placeholder defaults —
+ * 10 OTAs. Commission percentages are plausible placeholder defaults —
  * adjust per hotel's real OTA contracts once that data exists.
+ *
+ * Hostelworld was in the original schema-module spec; Hotels.com was
+ * added later for the booking-form module. Both are kept (rather than
+ * swapping one for the other) so existing seeded bookings that
+ * reference Hostelworld by ota_id don't get silently orphaned.
  */
 return new class extends Seeder {
     public function run(PDO $pdo): void
@@ -19,6 +24,7 @@ return new class extends Seeder {
             ['name' => 'MakeMyTrip', 'commission_pct' => 18.00],
             ['name' => 'Airbnb', 'commission_pct' => 14.00],
             ['name' => 'Hostelworld', 'commission_pct' => 12.00],
+            ['name' => 'Hotels.com', 'commission_pct' => 15.00],
             ['name' => 'Expedia', 'commission_pct' => 15.00],
             ['name' => 'Direct Booking', 'commission_pct' => 0.00],
             ['name' => 'Walk-in', 'commission_pct' => 0.00],
@@ -44,6 +50,6 @@ return new class extends Seeder {
             ]);
         }
 
-        $this->log('Seeded 9 OTAs.');
+        $this->log('Seeded 10 OTAs.');
     }
 };

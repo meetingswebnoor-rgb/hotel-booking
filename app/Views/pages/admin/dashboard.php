@@ -45,7 +45,7 @@ View::section('breadcrumbs');
   </div>
 
   <?php if (can('bookings', 'create')): ?>
-    <a href="#" class="btn btn-primary" aria-disabled="true">+ New Booking</a>
+    <a href="<?= route('bookings.create') ?>" class="btn btn-primary">+ New Booking</a>
   <?php endif; ?>
 </div>
 

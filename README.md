@@ -12,12 +12,12 @@ Hotezo is two products in one platform:
 
 This repository currently contains the **project skeleton** (folder structure, the custom
 lightweight MVC core, the design system, a styled placeholder landing page), the **complete
-MySQL/MariaDB schema** (27 tables, migrations, and seed data — including ~170 sample bookings so
-there's real data to look at), the **auth + authorization system** (login, sessions, role levels,
-hotel scoping, per-user permission overrides), the **authenticated app shell** (sidebar, topbar,
-mobile nav, confirm dialogs), and the **analytics dashboard** (KPIs, charts, drill-down, live
-polling). Feature modules (hotel/booking CRUD, commission calculation, invoicing) land on top of
-this in later steps.
+MySQL/MariaDB schema** (27 tables, migrations, and seed data), the **auth + authorization system**
+(login, sessions, role levels, hotel scoping, per-user permission overrides), the **authenticated
+app shell** (sidebar, topbar, mobile nav, confirm dialogs), the **analytics dashboard** (KPIs,
+charts, drill-down, live polling), and the **booking entry form** (create/edit, live GST/
+commission calculation, capacity warnings, a printable voucher). Feature modules (hotel/room/rate-
+plan management, invoicing, settlements) land on top of this in later steps.
 
 ## Tech stack
 
@@ -32,25 +32,28 @@ this in later steps.
 
 ```
 public/            The only web-accessible folder (docroot). index.php is the front controller.
-  assets/js/         app.js, api.js, ui.js, confirm.js, dashboard.js, animations.js, charts.js —
-                     ES modules, no build step.
+  assets/js/         app.js, api.js, ui.js, confirm.js, dashboard.js, booking-form.js, format.js,
+                     animations.js, charts.js — ES modules, no build step.
+  assets/css/        design-system.css, components.css, app.css (loaded everywhere), print.css
+                     (loaded only by the print layout).
 app/
   Core/            Router, Database (PDO), Request, Response, View, Session, Csrf, Auth,
                    Permission, RoleLevel, Icons, Validator, Mailer, Model, Migration, Migrator,
                    Seeder, App (service + current-request registry).
-  Controllers/      AuthController, DashboardController, HomeController, HotelFilterController,
-                    NotificationController, SearchController.
-  Models/           Per-table models extending Core/Model.
-  Services/         Business logic (BookingCalculator, InvoiceService, CommissionService, ...).
+  Controllers/      AuthController, BookingController, DashboardController, HomeController,
+                    HotelFilterController, NotificationController, SearchController.
+  Models/           Booking, plus per-table models extending Core/Model as writes land.
+  Services/         BookingCalculator (the authoritative money math), plus InvoiceService,
+                    CommissionService, ... as those modules land.
   Middleware/        AuthMiddleware, RoleMiddleware(minLevel), HotelScopeMiddleware.
   Views/
-    layouts/           public.php, admin.php (the app shell), auth.php.
+    layouts/           public.php, admin.php (the app shell), auth.php, print.php (voucher).
     partials/          sidebar, topbar, bottom-tab-bar, confirm-dialog, toasts, breadcrumbs,
                        empty-state, skeleton, nav-public, footer-public, head-meta,
-                       admin/ (chart-body, chart-restricted — shared dashboard chart states).
-    pages/             public/, auth/, admin/, errors/.
+                       admin/ (chart-body, chart-restricted, booking-room-line, booking-calc-summary).
+    pages/             public/, auth/, admin/ (dashboard, bookings/), errors/.
   Helpers/           Global helper functions (money, gst, fy_label, sanitize, icon, can,
-                     role_at_least, ...).
+                     role_at_least, old, old_array, form_errors, ...).
 config/             app.php, database.php, mail.php, auth.php, permissions.php (role -> module ->
                     action matrix — the only config file NOT read from .env).
 database/
@@ -168,8 +171,10 @@ Worth knowing before extending it:
   duplicate-key error. Each migration file's comment flags this where it applies.
 - **`roles.level` runs 0 (lowest authority) to 5 (highest)** — `5 = super_admin` down to
   `0 = read_only`. See "Authentication & authorization" below for the full role table.
-- **`bookings.rooms` is a JSON array** of room lines (room, rate plan, nightly rate, nights,
-  subtotal) since one booking can span multiple physical rooms.
+- **`bookings.rooms` is a JSON array** of room lines — `room_type`, `rate_plan_id` (nullable),
+  `adults`, `children`, `quantity`, `nightly_rate` — since one booking can span multiple room
+  types. Nights lives once at the booking level (`bookings.nights`), not per line, since check-in/
+  check-out apply to the whole stay. See "Booking entry form" below for how these get computed.
 
 ## Authentication & authorization
 
@@ -388,6 +393,72 @@ centered empty state (`has_data: false` in the JSON) rather than a wall of zeros
 chart also falls back to its own small empty state if its own dataset happens to be empty while
 others aren't.
 
+## Booking entry form
+
+`GET /bookings` (list), `GET /bookings/create` / `POST /bookings` (new), `GET /bookings/{id}/edit`
+/ `POST /bookings/{id}` (edit), `GET /bookings/{id}/voucher` (printable) — all in
+`app/Controllers/BookingController.php`. One rich glass form (not a wizard) serves both create and
+edit, with a sticky **Calculation Summary** panel on the right that updates live as you type.
+
+### The money math: `App\Services\BookingCalculator`
+
+Every figure — nights, room-rent subtotals, GST, TDS, TCS, both commissions, GST-on-commission,
+hotel earning, hotel/Hotezo collection split — is computed by this one service from the submitted
+room lines. `public/assets/js/booking-form.js` mirrors the exact same formulas for the live
+preview, but **the server never trusts that preview**: `BookingController::save()` recomputes
+everything via `BookingCalculator::calculate()` from the raw submitted room lines before writing a
+single row. `BookingSeeder` uses the same service too, so seeded and form-created bookings are
+priced identically.
+
+- **GST slab (5% vs 18%) is applied per room line**, against that line's own nightly rate — not
+  against the booking's combined total. That matches how Indian hotel GST actually works (the slab
+  depends on each room type's declared tariff), and one booking can mix a budget room and a suite
+  that sit in different slabs.
+- `hotel_gst` is guest-facing (added on top of room rent, not a deduction); TDS, both commissions,
+  and GST-on-commission are what actually reduce `hotel_earning`. TCS is tracked but not deducted
+  — see the class docblock for the full reasoning, kept consistent with the dashboard aggregates
+  already built on this data.
+
+### Fields worth knowing
+
+- **Booking ID** is editable, not read-only — pre-filled with a suggested `HTZ-{year}-{seq}` (the
+  next unused number in that pattern), but the user can overwrite it with e.g. an OTA's own
+  reference. `GET /bookings/check-id` backs the 500ms-debounced tick/cross next to the field;
+  `exclude_id` is passed in edit mode so a booking doesn't flag its own ID as taken.
+- **Property (hotel) is only editable when creating.** Once a booking exists it's rendered
+  disabled — changing hotels mid-edit would invalidate the room lines' room types and rate plans,
+  so the form just doesn't allow it.
+- **Rooms** is a repeater (`GET /bookings/rooms?hotel_id=` feeds it room types with their
+  aggregated capacity limits, plus that hotel's rate plans). Picking a room type suggests a
+  nightly rate from that type's `base_price`; picking a rate plan overrides it with the plan's own
+  price; the rate stays editable either way. Adults/children over a room type's `max_adults`/
+  `max_children` show a non-blocking amber warning (client-side only — capacity is a warning, not
+  a hard rule, per spec).
+- **OTA Source** is a real `otas` table dropdown, not a hardcoded list — `Walk-in` and
+  `Direct Booking` are themselves 0%-commission rows in that table (so every booking has a
+  non-null `ota_id` regardless of channel; `bookings.source` is the actual OTA-vs-direct
+  discriminator, a distinction that mattered when it turned out the dashboard's original OTA-split
+  logic had used `ota_id IS NOT NULL` and always read 100% OTA — see the dashboard commit history).
+
+### Permissions, voucher, and audit trail
+
+Create/edit both call `can('bookings', $action, $hotelId)` — hotel-scoped like everywhere else, so
+a `reception` user (create-only per `config/permissions.php`) gets a real `403` on
+`/bookings/{id}/edit`, and posting a `hotel_id` outside their `user_hotels` on create is rejected
+server-side even if the client is tampered with. Every create/update writes one `audit_logs` row
+(`booking.created` / `booking.updated`, with the full new values); status transitions into
+`checked_in`/`checked_out`/`cancelled` stamp the matching `*_at` timestamp exactly once, on the
+request that actually changes into that status.
+
+`GET /bookings/{id}/voucher` renders a print-optimized page (`layouts/print.php` + `print.css`,
+`window.print()` — no PDF generation) and logs one `booking_voucher_logs` row
+(`action = 'generated'`) each time it's viewed.
+
+**Module 16 stub:** booking creation/update has a marked spot (right after the audit log write in
+`BookingController::save()`) for queuing guest/hotel notifications once the email pipeline exists.
+Nothing sends today — the schema (`email_queue`, `notification_logs`) and the topbar's
+notifications bell are already real and waiting for a writer.
+
 ## Conventions
 
 - All money is stored as `DECIMAL(12,2)` INR and formatted with the `money()` helper (Indian
@@ -405,10 +476,15 @@ others aren't.
 
 ## What's next
 
-User management (create/edit users — enforcing `Permission::canManageRoleLevel()`), the real
-hotel/booking CRUD (the dashboard reads bookings but nothing writes them outside seeders yet),
-commission/GST calculation services, and PDF invoice generation — each arrives as its own module
-inside the app shell.
+User management (create/edit users — enforcing `Permission::canManageRoleLevel()`), hotel/room/
+rate-plan management (bookings can now be entered against existing inventory, but that inventory
+itself has no create/edit UI yet — it's seeder-only), settlements, and PDF invoice generation —
+each arrives as its own module inside the app shell.
+
+**OTA list note:** `otas` seeds 10 rows, not 9 — `Hostelworld` (from the original schema-module
+spec) and `Hotels.com` (named later, for the booking form) are both kept rather than one replacing
+the other, so no historical booking's `ota_id` gets silently orphaned. See
+`database/seeders/OtaSeeder.php`.
 
 **Known scaling limitation:** the topbar hotel filter renders every hotel the user can access as a
 plain (scrollable) list. Fine today at 3 seeded hotels and fine for any hotel-scoped user (rarely

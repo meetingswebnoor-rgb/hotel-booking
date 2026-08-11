@@ -135,29 +135,10 @@ final class DashboardController
 
     /**
      * @param array<int, string>|null $hotelIds
-     * @return array{0: string, 1: array<int, string>}
-     */
-    private function scopeCondition(?array $hotelIds, string $column): array
-    {
-        if ($hotelIds === null) {
-            return ['', []];
-        }
-
-        if ($hotelIds === []) {
-            return [' AND 1 = 0', []];
-        }
-
-        $placeholders = implode(', ', array_fill(0, count($hotelIds), '?'));
-
-        return [" AND {$column} IN ({$placeholders})", $hotelIds];
-    }
-
-    /**
-     * @param array<int, string>|null $hotelIds
      */
     private function scalarForPeriod(string $selectExpr, string $start, string $end, ?array $hotelIds, string $extraSql = ''): float
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'hotel_id');
         $sql = "SELECT {$selectExpr} FROM bookings WHERE is_deleted = 0 AND booking_date BETWEEN ? AND ? {$scopeSql} {$extraSql}";
 
         return (float) Database::query($sql, [$start, $end, ...$scopeParams])->fetchColumn();
@@ -197,7 +178,7 @@ final class DashboardController
      */
     private function hotelCountAsOf(DateTimeImmutable $asOf, ?array $hotelIds): int
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'id');
         $sql = "SELECT COUNT(*) FROM hotels WHERE is_deleted = 0 AND created_at <= ? {$scopeSql}";
 
         return (int) Database::query($sql, [$asOf->format('Y-m-d H:i:s'), ...$scopeParams])->fetchColumn();
@@ -209,7 +190,7 @@ final class DashboardController
      */
     private function monthlyTrend(?array $hotelIds, DateTimeImmutable $now): array
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'hotel_id');
         $firstOfThisMonth = $now->modify('first day of this month');
         $start = $firstOfThisMonth->modify('-5 months')->format('Y-m-d');
         $end = $now->format('Y-m-d');
@@ -239,7 +220,7 @@ final class DashboardController
      */
     private function revenueByOta(?array $hotelIds, string $start, string $end): array
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'b.hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'b.hotel_id');
         $sql = "SELECT COALESCE(o.name, CASE WHEN b.source = 'walkin' THEN 'Walk-in' ELSE 'Direct' END) AS source_name,
                        COALESCE(SUM(b.total_room_rent), 0) AS revenue
                 FROM bookings b
@@ -266,7 +247,7 @@ final class DashboardController
      */
     private function roomTypeDistribution(?array $hotelIds, string $start, string $end): array
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'hotel_id');
         $sql = "SELECT rooms FROM bookings WHERE is_deleted = 0 AND booking_date BETWEEN ? AND ? {$scopeSql}";
         $rows = Database::query($sql, [$start, $end, ...$scopeParams])->fetchAll();
 
@@ -292,7 +273,7 @@ final class DashboardController
      */
     private function topHotelsByEarnings(?array $hotelIds, string $start, string $end): array
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'b.hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'b.hotel_id');
         $sql = "SELECT h.name, COALESCE(SUM(b.hotel_earning), 0) AS earnings
                 FROM bookings b JOIN hotels h ON h.id = b.hotel_id
                 WHERE b.is_deleted = 0 AND b.booking_date BETWEEN ? AND ? {$scopeSql}
@@ -316,7 +297,7 @@ final class DashboardController
         // source, not ota_id nullability — Direct Booking/Walk-in are
         // themselves rows in `otas` (0% commission), so every booking
         // has a non-null ota_id regardless of channel.
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'hotel_id');
         $sql = "SELECT CASE WHEN source = 'ota' THEN 'OTA' ELSE 'Direct' END AS bucket, COUNT(*) AS cnt
                 FROM bookings
                 WHERE is_deleted = 0 AND booking_date BETWEEN ? AND ? {$scopeSql}
@@ -336,7 +317,7 @@ final class DashboardController
      */
     private function perHotelBreakdown(?array $hotelIds, string $start, string $end): array
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'b.hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'b.hotel_id');
         $sql = "SELECT b.hotel_id, h.name AS hotel_name, COUNT(*) AS bookings,
                        COALESCE(SUM(b.total_room_rent), 0) AS revenue,
                        COALESCE(SUM(b.hotel_earning), 0) AS earnings,
@@ -363,7 +344,7 @@ final class DashboardController
      */
     private function recentBookings(?array $hotelIds, bool $includeAmount): array
     {
-        [$scopeSql, $scopeParams] = $this->scopeCondition($hotelIds, 'b.hotel_id');
+        [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'b.hotel_id');
         $sql = "SELECT b.booking_id, b.guest_name, b.checkin_date, b.status, b.total_room_rent, h.name AS hotel_name
                 FROM bookings b JOIN hotels h ON h.id = b.hotel_id
                 WHERE b.is_deleted = 0 {$scopeSql}

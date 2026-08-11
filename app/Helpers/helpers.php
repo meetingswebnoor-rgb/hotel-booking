@@ -150,8 +150,36 @@ if (!function_exists('old')) {
     function old(string $key, string $default = ''): string
     {
         $input = Session::getFlash('_old_input', []);
+        $value = $input[$key] ?? $default;
 
-        return (string) ($input[$key] ?? $default);
+        return is_array($value) ? $default : (string) $value;
+    }
+}
+
+if (!function_exists('old_array')) {
+    /**
+     * Array-valued counterpart to old() — for repeater fields like a
+     * booking's room lines, where the flashed value is itself an array.
+     *
+     * @param array<int, mixed> $default
+     * @return array<int, mixed>
+     */
+    function old_array(string $key, array $default = []): array
+    {
+        $input = Session::getFlash('_old_input', []);
+        $value = $input[$key] ?? $default;
+
+        return is_array($value) ? $value : $default;
+    }
+}
+
+if (!function_exists('form_errors')) {
+    /**
+     * @return array<string, array<int, string>>
+     */
+    function form_errors(): array
+    {
+        return Session::getFlash('_form_errors', []);
     }
 }
 

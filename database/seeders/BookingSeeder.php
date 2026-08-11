@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Core\Database;
 use App\Core\Seeder;
+use App\Services\BookingCalculator;
 
 /**
  * Realistic-ish sample bookings across the seeded hotels, spread over
@@ -13,6 +14,12 @@ use App\Core\Seeder;
  * table. Guest names/emails are fictional placeholders. Skips
  * entirely if bookings already exist, so re-running `php cli seed`
  * doesn't duplicate data.
+ *
+ * Uses the same App\Services\BookingCalculator and room-line JSON
+ * shape (room_type/rate_plan_id/adults/children/quantity/nightly_rate)
+ * as the real booking form, so seeded and form-created bookings are
+ * computed identically and the dashboard's room-type parsing only
+ * ever sees one shape.
  */
 return new class extends Seeder {
     private const STATUSES = [
@@ -89,28 +96,21 @@ return new class extends Seeder {
                 $checkin = $bookingDate->modify('+' . random_int(0, 14) . ' days');
                 $checkout = $checkin->modify("+{$nights} days");
 
-                $roomLines = [$this->roomLine($rooms[array_rand($rooms)], $nights)];
+                $roomLines = [$this->roomLine($rooms[array_rand($rooms)])];
 
                 if (random_int(1, 100) <= 15) {
-                    $roomLines[] = $this->roomLine($rooms[array_rand($rooms)], $nights);
+                    $roomLines[] = $this->roomLine($rooms[array_rand($rooms)]);
                 }
-
-                $totalRoomRent = round(array_sum(array_column($roomLines, 'subtotal')), 2);
 
                 [$ota, $source] = $this->pickChannel($realOtas, $directOta, $walkinOta);
 
-                $otaCommissionPct = $ota !== null ? (float) $ota['commission_pct'] : 0.0;
-                $otaCommission = round($totalRoomRent * $otaCommissionPct / 100, 2);
-                $hotezoCommission = round($totalRoomRent * (float) $hotel['commission_pct'] / 100, 2);
-                $gstOnCommission = round($hotezoCommission * 0.18, 2);
-                $hotelGst = round($totalRoomRent * 0.12, 2);
-                $tds = round($totalRoomRent * 0.01, 2);
-                $totalCommissionTaxes = round($otaCommission + $hotezoCommission + $gstOnCommission, 2);
-                $hotelEarning = round($totalRoomRent + $hotelGst - $otaCommission - $hotezoCommission - $gstOnCommission - $tds, 2);
-                $hotelCollection = $source === 'ota'
-                    ? round($totalRoomRent + $hotelGst - $otaCommission, 2)
-                    : round($totalRoomRent + $hotelGst, 2);
-                $hotezoCollection = round($hotezoCommission + $gstOnCommission, 2);
+                $calc = BookingCalculator::calculate(
+                    $roomLines,
+                    $nights,
+                    $ota !== null ? (float) $ota['commission_pct'] : 0.0,
+                    (float) $hotel['commission_pct'],
+                    $source
+                );
 
                 $status = self::STATUSES[array_rand(self::STATUSES)];
 
@@ -137,17 +137,17 @@ return new class extends Seeder {
                     'rooms' => json_encode($roomLines),
                     'adults' => $adults,
                     'children' => $children,
-                    'total_room_rent' => $totalRoomRent,
-                    'hotel_gst' => $hotelGst,
-                    'tds' => $tds,
-                    'tcs' => 0,
-                    'ota_commission' => $otaCommission,
-                    'hotezo_commission' => $hotezoCommission,
-                    'gst_on_commission' => $gstOnCommission,
-                    'total_commission_taxes' => $totalCommissionTaxes,
-                    'hotel_earning' => $hotelEarning,
-                    'hotel_collection' => $hotelCollection,
-                    'hotezo_collection' => $hotezoCollection,
+                    'total_room_rent' => $calc['total_room_rent'],
+                    'hotel_gst' => $calc['hotel_gst'],
+                    'tds' => $calc['tds'],
+                    'tcs' => $calc['tcs'],
+                    'ota_commission' => $calc['ota_commission'],
+                    'hotezo_commission' => $calc['hotezo_commission'],
+                    'gst_on_commission' => $calc['gst_on_commission'],
+                    'total_commission_taxes' => $calc['total_commission_taxes'],
+                    'hotel_earning' => $calc['hotel_earning'],
+                    'hotel_collection' => $calc['hotel_collection'],
+                    'hotezo_collection' => $calc['hotezo_collection'],
                     'status' => $status,
                     'ota_payment_status' => self::PAYMENT_STATUSES[array_rand(self::PAYMENT_STATUSES)],
                     'source' => $source,
@@ -169,18 +169,17 @@ return new class extends Seeder {
 
     /**
      * @param array<string, mixed> $room
-     * @return array{room_id: string, room_type: string, nightly_rate: float, nights: int, subtotal: float}
+     * @return array{room_type: string, rate_plan_id: null, adults: int, children: int, quantity: int, nightly_rate: float}
      */
-    private function roomLine(array $room, int $nights): array
+    private function roomLine(array $room): array
     {
-        $rate = (float) $room['base_price'];
-
         return [
-            'room_id' => $room['id'],
             'room_type' => $room['room_type'],
-            'nightly_rate' => $rate,
-            'nights' => $nights,
-            'subtotal' => round($rate * $nights, 2),
+            'rate_plan_id' => null,
+            'adults' => min((int) $room['max_adults'], 2) ?: 1,
+            'children' => 0,
+            'quantity' => 1,
+            'nightly_rate' => (float) $room['base_price'],
         ];
     }
 

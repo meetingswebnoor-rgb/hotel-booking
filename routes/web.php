@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Controllers\AuthController;
+use App\Controllers\BookingController;
 use App\Controllers\DashboardController;
 use App\Controllers\HomeController;
 use App\Controllers\HotelFilterController;
@@ -35,6 +36,17 @@ return function (Router $router): void {
         [RoleMiddleware::class, RoleLevel::READ_ONLY],
         HotelScopeMiddleware::class,
     ], name: 'dashboard.data');
+
+    $router->group(['prefix' => '/bookings', 'middleware' => [AuthMiddleware::class, HotelScopeMiddleware::class]], function (Router $router): void {
+        $router->get('/', [BookingController::class, 'index'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.index');
+        $router->get('/create', [BookingController::class, 'create'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.create');
+        $router->get('/check-id', [BookingController::class, 'checkId'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.check-id');
+        $router->get('/rooms', [BookingController::class, 'roomsForHotel'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.rooms');
+        $router->post('/', [BookingController::class, 'store'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.store');
+        $router->get('/{id}/edit', [BookingController::class, 'edit'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.edit');
+        $router->post('/{id}', [BookingController::class, 'update'], [[RoleMiddleware::class, RoleLevel::STAFF]], name: 'bookings.update');
+        $router->get('/{id}/voucher', [BookingController::class, 'voucher'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'bookings.voucher');
+    });
 
     // App shell endpoints — used by every admin page's topbar/sidebar.
     $router->post('/hotel-filter', [HotelFilterController::class, 'set'], [AuthMiddleware::class], name: 'hotel-filter.set');

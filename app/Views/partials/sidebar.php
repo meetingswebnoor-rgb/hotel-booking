@@ -14,7 +14,7 @@ $active ??= '';
 
 $navItems = [
     ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid', 'href' => route('dashboard'), 'visible' => true],
-    ['key' => 'bookings', 'label' => 'Bookings', 'icon' => 'calendar', 'visible' => can('bookings', 'view')],
+    ['key' => 'bookings', 'label' => 'Bookings', 'icon' => 'calendar', 'href' => can('bookings', 'view') ? route('bookings.index') : null, 'visible' => can('bookings', 'view')],
     ['key' => 'hotels', 'label' => 'Hotels', 'icon' => 'home', 'visible' => can('hotels', 'view')],
     ['key' => 'otas', 'label' => 'OTAs', 'icon' => 'share', 'visible' => can('otas', 'view')],
     ['key' => 'invoices', 'label' => 'Invoices', 'icon' => 'file-text', 'visible' => can('invoices', 'view')],
