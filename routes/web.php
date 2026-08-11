@@ -30,6 +30,12 @@ return function (Router $router): void {
         HotelScopeMiddleware::class,
     ], name: 'dashboard');
 
+    $router->get('/dashboard/data', [DashboardController::class, 'data'], [
+        AuthMiddleware::class,
+        [RoleMiddleware::class, RoleLevel::READ_ONLY],
+        HotelScopeMiddleware::class,
+    ], name: 'dashboard.data');
+
     // App shell endpoints — used by every admin page's topbar/sidebar.
     $router->post('/hotel-filter', [HotelFilterController::class, 'set'], [AuthMiddleware::class], name: 'hotel-filter.set');
     $router->get('/notifications', [NotificationController::class, 'index'], [AuthMiddleware::class], name: 'notifications.index');

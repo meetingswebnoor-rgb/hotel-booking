@@ -96,3 +96,55 @@ export function createDonutChart(ctx, { labels, data, colors }) {
     },
   });
 }
+
+export function createHorizontalBarChart(ctx, { labels, datasets }) {
+  return new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: datasets.map((ds) => ({
+        borderRadius: 8,
+        backgroundColor: cssVar('--color-cyan'),
+        ...ds,
+      })),
+    },
+    options: {
+      ...baseOptions(),
+      indexAxis: 'y',
+      scales: {
+        x: {
+          grid: { color: cssVar('--border') },
+          ticks: { color: cssVar('--text-low') },
+        },
+        y: {
+          grid: { display: false },
+          ticks: { color: cssVar('--text-low') },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * In-place update so polling refreshes a chart's data without
+ * destroying/recreating it (avoids flicker on every 15s poll).
+ */
+export function updateChartData(chart, { labels, data, datasets }) {
+  if (labels) {
+    chart.data.labels = labels;
+  }
+
+  if (data) {
+    chart.data.datasets[0].data = data;
+  }
+
+  if (datasets) {
+    datasets.forEach((ds, i) => {
+      if (chart.data.datasets[i]) {
+        Object.assign(chart.data.datasets[i], ds);
+      }
+    });
+  }
+
+  chart.update();
+}

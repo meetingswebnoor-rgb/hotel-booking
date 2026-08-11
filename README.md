@@ -12,11 +12,12 @@ Hotezo is two products in one platform:
 
 This repository currently contains the **project skeleton** (folder structure, the custom
 lightweight MVC core, the design system, a styled placeholder landing page), the **complete
-MySQL/MariaDB schema** (27 tables, migrations, and seed data), the **auth + authorization system**
-(login, sessions, role levels, hotel scoping, per-user permission overrides), and the
-**authenticated app shell** (sidebar, topbar, mobile nav, confirm dialogs — everything every admin
-page renders inside). Feature modules (hotel/booking CRUD, commission calculation, the real
-dashboard content) land on top of this in later steps.
+MySQL/MariaDB schema** (27 tables, migrations, and seed data — including ~170 sample bookings so
+there's real data to look at), the **auth + authorization system** (login, sessions, role levels,
+hotel scoping, per-user permission overrides), the **authenticated app shell** (sidebar, topbar,
+mobile nav, confirm dialogs), and the **analytics dashboard** (KPIs, charts, drill-down, live
+polling). Feature modules (hotel/booking CRUD, commission calculation, invoicing) land on top of
+this in later steps.
 
 ## Tech stack
 
@@ -31,7 +32,8 @@ dashboard content) land on top of this in later steps.
 
 ```
 public/            The only web-accessible folder (docroot). index.php is the front controller.
-  assets/js/         app.js, api.js, ui.js, confirm.js, animations.js, charts.js — ES modules, no build step.
+  assets/js/         app.js, api.js, ui.js, confirm.js, dashboard.js, animations.js, charts.js —
+                     ES modules, no build step.
 app/
   Core/            Router, Database (PDO), Request, Response, View, Session, Csrf, Auth,
                    Permission, RoleLevel, Icons, Validator, Mailer, Model, Migration, Migrator,
@@ -44,7 +46,8 @@ app/
   Views/
     layouts/           public.php, admin.php (the app shell), auth.php.
     partials/          sidebar, topbar, bottom-tab-bar, confirm-dialog, toasts, breadcrumbs,
-                       empty-state, skeleton, nav-public, footer-public, head-meta.
+                       empty-state, skeleton, nav-public, footer-public, head-meta,
+                       admin/ (chart-body, chart-restricted — shared dashboard chart states).
     pages/             public/, auth/, admin/, errors/.
   Helpers/           Global helper functions (money, gst, fy_label, sanitize, icon, can,
                      role_at_least, ...).
@@ -52,7 +55,8 @@ config/             app.php, database.php, mail.php, auth.php, permissions.php (
                     action matrix — the only config file NOT read from .env).
 database/
   migrations/        27 numbered migration files — see "Database schema" below.
-  seeders/           RoleSeeder, OtaSeeder, SuperAdminSeeder, HotelSeeder, DatabaseSeeder.
+  seeders/           RoleSeeder, OtaSeeder, SuperAdminSeeder, HotelSeeder, BookingSeeder,
+                     DatabaseSeeder.
 cron/               daily_digest.php, weekly_digest.php, retry_emails.php, purge_logs.php.
 routes/             web.php — route definitions.
 cli                 CLI entry point: php cli migrate | migrate:rollback | migrate:fresh |
@@ -95,7 +99,9 @@ cli                 CLI entry point: php cli migrate | migrate:rollback | migrat
    console — copy it now, it is stored only as a bcrypt hash and never shown again. Override it
    in advance with `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` in `.env` if you want fixed
    credentials. See [`cli`](cli) for the full command list
-   (`migrate:rollback`, `migrate:fresh`, `migrate:status`).
+   (`migrate:rollback`, `migrate:fresh`, `migrate:status`). Seeding also generates ~150-250
+   sample bookings spread across the last 6 months (`BookingSeeder`) so the dashboard has real
+   data to show — it's skipped automatically on repeat `seed` runs once any bookings exist.
 
 5. **Run the dev server** from the project root:
 
@@ -110,8 +116,8 @@ cli                 CLI entry point: php cli migrate | migrate:rollback | migrat
    (an `.htaccess` is already in place for Apache) so all requests route through `index.php`.
 
 6. **Log in** at `http://localhost:8000/login` with the Super Admin credentials `php cli seed`
-   printed, and you'll land on the protected `/dashboard` sample route — see "Authentication &
-   authorization" below.
+   printed, and you'll land on the real analytics `/dashboard` — see "Authentication &
+   authorization" and "Dashboard" below.
 
 ## Design system
 
@@ -248,14 +254,11 @@ templates, so `can()`/`role_at_least()` are the "`@can`/`@role`" of this codebas
 only create/manage users with a role level lower than their own" (Super Admin exempt). No user
 CRUD UI exists yet — this is ready for the Users module to call once it lands.
 
-### Sample protected route
+### Protected routes
 
-`GET /dashboard` (`app/Controllers/DashboardController.php`,
-[app/Views/pages/admin/dashboard.php](app/Views/pages/admin/dashboard.php)) is gated by all three
-middleware (`AuthMiddleware`, `[RoleMiddleware::class, RoleLevel::READ_ONLY]`,
-`HotelScopeMiddleware`) and renders the caller's name/role/level, only the hotels their scope
-allows, and a `can('bookings', 'create')`-gated "New Booking" button — a working end-to-end demo
-of the whole stack.
+`GET /dashboard` is gated by all three middleware (`AuthMiddleware`,
+`[RoleMiddleware::class, RoleLevel::READ_ONLY]`, `HotelScopeMiddleware`) — see "Dashboard" below
+for what it actually renders.
 
 ## App shell
 
@@ -326,6 +329,65 @@ the hotel filter all persist (`localStorage` for the first two, server-side sess
 filter) — see `App\Core\Session` / `localStorage` keys `hotezo-theme` and
 `hotezo-sidebar-collapsed`.
 
+## Dashboard
+
+`GET /dashboard` (`app/Controllers/DashboardController.php::index`) renders a skeleton-first shell
+— every KPI/chart/table shows a shimmer placeholder immediately. `GET /dashboard/data` (same
+middleware) returns the actual JSON, fetched by `public/assets/js/dashboard.js` via `api.js` and
+used to populate everything in place: count-up KPI values, Chart.js instances, and table rows.
+Every query in `DashboardController` is scoped by the same `$request->scope('hotel_ids')`
+`HotelScopeMiddleware` sets for the rest of the app, further narrowed (never widened) by an
+optional `?hotel_id=` drill-down param — see "Drill-down" below.
+
+### KPIs
+
+8 cards, each comparing **month-to-date vs. the same day-range last month** (so a partial current
+month is never unfairly compared against a full previous one): Total Bookings, Total Revenue,
+Hotel Earnings, Commissions & Taxes, Total Guests, Avg Guests/Booking, OTA Bookings, Total Hotels.
+Total Hotels is the odd one out — it compares *cumulative* hotel count as of now vs. as of the
+equivalent date last month (portfolio growth), not a period sum like the other seven.
+
+### Charts
+
+All five pull from the trailing 6-month window (not the KPIs' MTD window, so there's enough data
+to plot): Monthly Booking Trend (line/area), Revenue by OTA Source (donut), Room Type Distribution
+(horizontal bar), Top 5 Hotels by Earnings (bar), OTA vs Direct (small donut). Chart instances are
+created once and updated in place on every poll/drill-down (`updateChartData()` in `charts.js`) —
+never destroyed and recreated, so there's no flicker.
+
+`Room Type Distribution` decodes `bookings.rooms` JSON in PHP rather than a SQL-side `GROUP BY`,
+because this project's MariaDB (10.4) predates `JSON_TABLE` (MariaDB 10.6+ / MySQL 8+). Revisit
+if the deployment target's DB version changes.
+
+### Financial gating
+
+Total Revenue, Hotel Earnings, and Commissions & Taxes (KPIs), Revenue by OTA Source and Top 5
+Hotels by Earnings (charts), and the entire per-hotel breakdown table are only rendered — server-
+side, not just hidden client-side — when `can('reports', 'view')` is true. `front_desk` and
+`reception` (no `reports` permission by default) see a "Restricted" placeholder in place of each
+gated KPI/chart, no breakdown table at all, and Recent Bookings without its amount column. This is
+narrower than the `reports` module already gates via `config/permissions.php` and doesn't need any
+new plumbing.
+
+### Drill-down
+
+Click a row in the per-hotel breakdown table to filter the *entire* dashboard (KPIs, charts,
+tables) to just that hotel; click the same row again, or the banner's "Clear" button, to go back.
+This is a page-local `?hotel_id=` query param on `/dashboard/data` — separate from the topbar's
+session-persisted hotel filter (see "App shell" above). `DashboardController::effectiveHotelIds()`
+only lets the drill-down *narrow* whatever the user is already permitted to see; requesting a
+hotel outside that scope is silently ignored (falls back to the normal scope), not a 403 — checked
+directly against the running app, not just read from the code.
+
+### Live updates & empty states
+
+`dashboard.js` polls `/dashboard/data` every 15 seconds so new bookings show up without a reload,
+pausing while the tab is hidden (Page Visibility API) and resuming when it's visible again. If a
+scope has zero bookings in the 6-month window, the whole KPI/chart/table block is replaced by one
+centered empty state (`has_data: false` in the JSON) rather than a wall of zeros; each individual
+chart also falls back to its own small empty state if its own dataset happens to be empty while
+others aren't.
+
 ## Conventions
 
 - All money is stored as `DECIMAL(12,2)` INR and formatted with the `money()` helper (Indian
@@ -344,8 +406,9 @@ filter) — see `App\Core\Session` / `localStorage` keys `hotezo-theme` and
 ## What's next
 
 User management (create/edit users — enforcing `Permission::canManageRoleLevel()`), the real
-hotel/booking CRUD, commission/GST calculation services, the dashboard content built out beyond
-the sample, and PDF invoice generation — each arrives as its own module inside the app shell.
+hotel/booking CRUD (the dashboard reads bookings but nothing writes them outside seeders yet),
+commission/GST calculation services, and PDF invoice generation — each arrives as its own module
+inside the app shell.
 
 **Known scaling limitation:** the topbar hotel filter renders every hotel the user can access as a
 plain (scrollable) list. Fine today at 3 seeded hotels and fine for any hotel-scoped user (rarely

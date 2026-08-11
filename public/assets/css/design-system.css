@@ -234,6 +234,11 @@ p {
   height: 13px;
 }
 
+.icon-lg {
+  width: 32px;
+  height: 32px;
+}
+
 /* --------------------------- Theme switch transition --------------------------- */
 /*
  * Applied to <html> for a short window while the theme toggles, so

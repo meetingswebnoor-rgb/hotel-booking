@@ -27,30 +27,41 @@ export function initPageEnter(selector = '[data-animate]') {
   });
 }
 
+/**
+ * Animates a single element's text content from its current numeric
+ * value (or 0) up to `end`. Exported standalone so dynamically-loaded
+ * data (e.g. dashboard KPIs fetched after page load) can trigger a
+ * count-up on demand, not just once at DOMContentLoaded.
+ */
+export function animateCountUp(el, end, { prefix = '', suffix = '', decimals = 0, duration = 1.1, from = 0, format = null } = {}) {
+  if (Number.isNaN(end)) return;
+
+  const render = (value) => `${prefix}${format ? format(value, decimals) : value.toFixed(decimals)}${suffix}`;
+
+  if (reduceMotion || typeof gsap === 'undefined') {
+    el.textContent = render(end);
+    return;
+  }
+
+  const counter = { value: from };
+  gsap.to(counter, {
+    value: end,
+    duration,
+    ease: 'power2.out',
+    onUpdate: () => {
+      el.textContent = render(counter.value);
+    },
+  });
+}
+
 export function initCountUp(selector = '[data-countup]') {
-  const targets = document.querySelectorAll(selector);
-
-  targets.forEach((el) => {
+  document.querySelectorAll(selector).forEach((el) => {
     const end = parseFloat(el.getAttribute('data-countup') ?? el.textContent.replace(/[^0-9.-]/g, ''));
-    const prefix = el.getAttribute('data-countup-prefix') ?? '';
-    const suffix = el.getAttribute('data-countup-suffix') ?? '';
-    const decimals = parseInt(el.getAttribute('data-countup-decimals') ?? '0', 10);
 
-    if (Number.isNaN(end)) return;
-
-    if (reduceMotion || typeof gsap === 'undefined') {
-      el.textContent = `${prefix}${end.toFixed(decimals)}${suffix}`;
-      return;
-    }
-
-    const counter = { value: 0 };
-    gsap.to(counter, {
-      value: end,
-      duration: 1.1,
-      ease: 'power2.out',
-      onUpdate: () => {
-        el.textContent = `${prefix}${counter.value.toFixed(decimals)}${suffix}`;
-      },
+    animateCountUp(el, end, {
+      prefix: el.getAttribute('data-countup-prefix') ?? '',
+      suffix: el.getAttribute('data-countup-suffix') ?? '',
+      decimals: parseInt(el.getAttribute('data-countup-decimals') ?? '0', 10),
     });
   });
 }
