@@ -84,7 +84,7 @@ View::section('styles');
   <div class="container hero__grid">
     <div class="hero__copy">
       <span class="hero__eyebrow glass" data-animate><span aria-hidden="true">✨</span> The booking hub + back office for hotels</span>
-      <h1 class="hero__title" data-animate>One platform. Every hotel.<br><span class="gradient-text">Every booking — settled automatically.</span></h1>
+      <h1 class="hero__title" data-animate>One platform.<br><span class="gradient-text">Every booking, settled automatically.</span></h1>
       <p class="hero__subtitle" data-animate>List your hotel, take direct &amp; OTA bookings, and let Hotezo auto-calculate every commission, GST, TDS and TCS — down to the exact rupee the hotel earns.</p>
 
       <div class="hero__actions" data-animate>
@@ -98,22 +98,22 @@ View::section('styles');
       <p class="hero__trust text-low" data-animate>1000+ hotels &middot; 9 OTA channels &middot; GST-compliant invoicing</p>
     </div>
 
-    <div class="hero__mockup" data-animate aria-hidden="true">
+    <div class="hero__mockup" data-hero-mockup aria-hidden="true">
       <div class="mockup-card glass">
         <div class="mockup-card__header">
           <span class="mockup-card__dot"></span><span class="mockup-card__dot"></span><span class="mockup-card__dot"></span>
           <span class="mockup-card__title">Hotezo Dashboard</span>
         </div>
         <div class="mockup-card__kpis">
-          <div class="mockup-kpi">
+          <div class="mockup-kpi" data-hero-kpi>
             <span class="mockup-kpi__label">Total Bookings</span>
             <span class="mockup-kpi__value font-mono" data-countup="1284">0</span>
           </div>
-          <div class="mockup-kpi">
+          <div class="mockup-kpi" data-hero-kpi>
             <span class="mockup-kpi__label">Revenue</span>
             <span class="mockup-kpi__value font-mono"><span data-countup="4823600" data-countup-prefix="₹">0</span></span>
           </div>
-          <div class="mockup-kpi">
+          <div class="mockup-kpi" data-hero-kpi>
             <span class="mockup-kpi__label">Hotel Earnings</span>
             <span class="mockup-kpi__value font-mono"><span data-countup="3941200" data-countup-prefix="₹">0</span></span>
           </div>

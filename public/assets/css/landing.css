@@ -55,7 +55,13 @@
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: var(--space-12);
-  align-items: center;
+  align-items: stretch;
+}
+
+.hero__copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .hero__trust {
@@ -63,9 +69,19 @@
   margin-top: var(--space-6);
 }
 
-/* Mockup card (hero product preview) */
+.hero__mockup {
+  display: flex;
+}
+
+/* Mockup card (hero product preview) — height: 100% + flex-column so it
+   always matches the copy column's height (grid's stretch above) rather
+   than leaving dead space below a shorter card; the chart area is the
+   flexible element that grows/shrinks to take up the difference. */
 .mockup-card {
+  width: 100%;
   padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
 }
 
 .mockup-card__header {
@@ -118,7 +134,8 @@
 }
 
 .mockup-card__chart {
-  height: 140px;
+  flex: 1;
+  min-height: 140px;
   position: relative;
 }
 
