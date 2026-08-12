@@ -54,16 +54,56 @@ export function animateCountUp(el, end, { prefix = '', suffix = '', decimals = 0
   });
 }
 
-export function initCountUp(selector = '[data-countup]') {
+function countUpOptionsFrom(el) {
+  return {
+    prefix: el.getAttribute('data-countup-prefix') ?? '',
+    suffix: el.getAttribute('data-countup-suffix') ?? '',
+    decimals: parseInt(el.getAttribute('data-countup-decimals') ?? '0', 10),
+  };
+}
+
+/**
+ * Elements with data-countup-onscroll are skipped here — they're
+ * handled by initScrollCountUp() instead, once they're actually
+ * visible, so a stat below the fold doesn't finish counting before
+ * the visitor has scrolled anywhere near it.
+ */
+export function initCountUp(selector = '[data-countup]:not([data-countup-onscroll])') {
   document.querySelectorAll(selector).forEach((el) => {
     const end = parseFloat(el.getAttribute('data-countup') ?? el.textContent.replace(/[^0-9.-]/g, ''));
 
-    animateCountUp(el, end, {
-      prefix: el.getAttribute('data-countup-prefix') ?? '',
-      suffix: el.getAttribute('data-countup-suffix') ?? '',
-      decimals: parseInt(el.getAttribute('data-countup-decimals') ?? '0', 10),
-    });
+    animateCountUp(el, end, countUpOptionsFrom(el));
   });
+}
+
+/**
+ * Same count-up, triggered the first time each element scrolls into
+ * view (IntersectionObserver, not ScrollTrigger — this needs to work
+ * even on a page that hasn't registered the GSAP plugin). Used by the
+ * landing page's stats band and mini calculation card.
+ */
+export function initScrollCountUp(selector = '[data-countup-onscroll]') {
+  const targets = document.querySelectorAll(selector);
+  if (!targets.length) return;
+
+  if (typeof IntersectionObserver === 'undefined') {
+    targets.forEach((el) => animateCountUp(el, parseFloat(el.getAttribute('data-countup')), countUpOptionsFrom(el)));
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        const el = entry.target;
+        animateCountUp(el, parseFloat(el.getAttribute('data-countup')), countUpOptionsFrom(el));
+        observer.unobserve(el);
+      });
+    },
+    { threshold: 0.4 }
+  );
+
+  targets.forEach((el) => observer.observe(el));
 }
 
 export function initHoverLift(selector = '.card-hover, .btn') {

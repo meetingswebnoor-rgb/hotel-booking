@@ -314,6 +314,42 @@ export function initNotifications() {
 }
 
 /**
+ * The public navbar (partials/nav-public.php, every public page): a
+ * solid/blur background past a small scroll threshold — deliberately
+ * not tied to any one page's hero height, since /explore and
+ * /hotel/{slug} share this same navbar without a matching hero — plus
+ * the mobile slide-over menu.
+ */
+export function initPublicNav() {
+  const nav = document.querySelector('[data-public-nav]');
+  if (!nav) return;
+
+  const SCROLL_THRESHOLD = 24;
+  const onScroll = () => nav.classList.toggle('public-nav--scrolled', window.scrollY > SCROLL_THRESHOLD);
+  onScroll();
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  const toggleBtn = document.querySelector('[data-public-nav-toggle]');
+  const mobileMenu = document.querySelector('[data-public-nav-mobile]');
+  if (!toggleBtn || !mobileMenu) return;
+
+  const close = () => {
+    mobileMenu.hidden = true;
+    toggleBtn.setAttribute('aria-expanded', 'false');
+  };
+
+  toggleBtn.addEventListener('click', () => {
+    const willOpen = mobileMenu.hidden;
+    mobileMenu.hidden = !willOpen;
+    toggleBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+  });
+
+  document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-public-nav-close]')) close();
+  });
+}
+
+/**
  * Generic auto-submit for server-rendered filter bars (Rooms, Rate
  * Plans — pages small enough not to need the Bookings list's AJAX/JSON
  * treatment): any select/input marked data-auto-submit submits its

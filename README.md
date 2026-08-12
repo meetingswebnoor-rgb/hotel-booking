@@ -11,17 +11,19 @@ Hotezo is two products in one platform:
   Super Admin, Hotel Admin, and Hotel Manager / Front Desk.
 
 This repository currently contains the **project skeleton** (folder structure, the custom
-lightweight MVC core, the design system, a styled placeholder landing page), the **complete
-MySQL/MariaDB schema** (27 tables, migrations, and seed data), the **auth + authorization system**
-(login, sessions, role levels, hotel scoping, per-user permission overrides), the **authenticated
-app shell** (sidebar, topbar, mobile nav, confirm dialogs), the **analytics dashboard** (KPIs,
-charts, drill-down, live polling), the **booking entry form and list** (create/edit, live GST/
-commission calculation, capacity warnings, a printable voucher, a filterable paginated list with a
-financial-breakdown drawer), the **hotel management hub** (property grid, a 9-tab hub per hotel,
-cascading soft delete), **standalone Rooms and Rate Plans pages** (cross-hotel browsing/management
-sharing their validation and save logic with the hub's tabs), and a **security-hardening +
-Hostinger-deployment-readiness pass** (CSP, forced HTTPS, hardened sessions, response headers). User
-management, the inventory calendar, invoicing, and settlements land on top of this in later steps.
+lightweight MVC core, the design system), the **complete MySQL/MariaDB schema** (27 tables,
+migrations, and seed data), the **auth + authorization system** (login, sessions, role levels, hotel
+scoping, per-user permission overrides), the **authenticated app shell** (sidebar, topbar, mobile
+nav, confirm dialogs), the **analytics dashboard** (KPIs, charts, drill-down, live polling), the
+**booking entry form and list** (create/edit, live GST/commission calculation, capacity warnings, a
+printable voucher, a filterable paginated list with a financial-breakdown drawer), the **hotel
+management hub** (property grid, a 9-tab hub per hotel, cascading soft delete), **standalone Rooms
+and Rate Plans pages** (cross-hotel browsing/management sharing their validation and save logic with
+the hub's tabs), a **security-hardening + Hostinger-deployment-readiness pass** (CSP, forced HTTPS,
+hardened sessions, response headers), and the **public marketing landing page** (animated hero,
+feature grid, a public hotel directory + per-hotel page, and a Live Demo one-click quick-login into
+three seeded demo accounts). User management, the inventory calendar, invoicing, and settlements
+land on top of this in later steps.
 
 ## Tech stack
 
@@ -119,6 +121,19 @@ cli                 CLI entry point: php cli migrate | migrate:rollback | migrat
    sample bookings spread across the last 6 months (`BookingSeeder`) so the dashboard has real
    data to show — it's skipped automatically on repeat `seed` runs once any bookings exist.
 
+   The same `php cli seed` run also seeds three **fixed** (not randomly generated) demo accounts
+   for the landing page's Live Demo section (`database/seeders/DemoUsersSeeder.php` — see "Public
+   landing page" below):
+
+   | Role | Email | Password | Hotel scope |
+   | --- | --- | --- | --- |
+   | Super Admin | `superadmin@hotezo.com` | `Super@Hotezo2026` | All hotels |
+   | Admin (Owner) | `admin@hotezo.com` | `Admin@Hotezo2026` | Demo Grand Hotel |
+   | Hotel Manager | `manager@hotezo.com` | `Manager@Hotezo2026` | Demo Grand Hotel |
+
+   These are meant to be shared/public-facing (that's the point of a demo login) — never reuse
+   these exact credentials for a real account. Quick-login only works while `DEMO_MODE=true`.
+
 5. **Run the dev server** from the project root:
 
    ```bash
@@ -152,10 +167,11 @@ under the `hotezo-theme` key, and defaults to the visitor's OS preference otherw
 
 27 tables, all InnoDB, all with the standard audit columns (see Conventions below). Numbered
 migration files in [database/migrations/](database/migrations/) create them in this dependency
-order — each file's doc comment explains any non-obvious modeling decision. `0026`/`0027` are
-`ALTER TABLE` migrations on top of the original 25 (added for the auth/authorization system, see
-below): `0026` adds `hotel_id` to `user_permissions` so overrides can be hotel-scoped, `0027` adds
-`failed_login_attempts`/`locked_until` to `users` for login rate-limiting.
+order — each file's doc comment explains any non-obvious modeling decision. `0026`-`0028` are
+`ALTER TABLE` migrations on top of the original 25 (no new tables, hence 27 not 28): `0026` adds
+`hotel_id` to `user_permissions` so overrides can be hotel-scoped (auth/authorization system),
+`0027` adds `failed_login_attempts`/`locked_until` to `users` for login rate-limiting (same), and
+`0028` adds `is_demo` to `users` for the landing page's seeded quick-login accounts.
 
 | Area | Tables |
 | --- | --- |
@@ -657,6 +673,86 @@ destroy stays at `HOTEL_MANAGER` since no lower role has delete. Verified agains
 
 Rooms (`layers` icon) and Rate Plans (`tag` icon) were added to `partials/sidebar.php`, gated by
 `can('rooms', 'view')` / `can('rate_plans', 'view')` — same convention as every other item.
+
+## Public landing page
+
+`GET /` (`App\Controllers\HomeController::index()`, [app/Views/pages/public/home.php](app/Views/pages/public/home.php))
+is the full marketing page: sticky glass navbar, an animated aurora/parallax hero with a live-look
+product mockup, a scroll-triggered stats band, a problem→solution panel, a 9-card feature grid, a
+4-step "how it works" timeline, a marquee of OTA chips, three role cards, a Live Demo section with
+one-click quick-login, sample testimonials (clearly marked as placeholder), a commission-model
+explainer, and a final CTA banner. Page-specific CSS/JS
+([public/assets/css/landing.css](public/assets/css/landing.css),
+[public/assets/js/landing.js](public/assets/js/landing.js)) load only on this page via a new
+`View::yieldSection('styles')` hook in `partials/head-meta.php` (mirrors the existing `scripts`
+section) — `/explore` and `/hotel/{slug}` share the same navbar/footer without paying for the
+landing page's CSS. Every scroll-triggered reveal (GSAP + ScrollTrigger, loaded by
+`layouts/public.php` since the original scaffold but never wired to anything until this page needed
+it) and the stats band's count-up fall back to showing the final state immediately under
+`prefers-reduced-motion` — same convention as `animations.js`'s existing count-ups.
+
+### Two routing decisions forced by the existing app
+
+- **The public hotel directory lives at `/explore`, not `/hotels`.** That path is already the
+  auth-scoped admin Hotel Management list (`App\Controllers\HotelController`) — this router has no
+  way to disambiguate two different `GET` routes on the same path, so the public-facing equivalent
+  (`App\Controllers\PublicHotelController::index()`, active hotels only, no financials) needed a
+  different one. `GET /hotel/{slug}` is the per-hotel detail page; neither exposes anything
+  `HotelController`'s auth-scoped routes do.
+- **`/register` and `/contact` don't exist yet.** "List Your Hotel" and Contact links fall back to
+  `/login` and a `mailto:` respectively, gated by `config('app.register_route_enabled')` /
+  `contact_route_enabled` (env `REGISTER_ENABLED` / `CONTACT_PAGE_ENABLED`, both default off) — flip
+  either on once the real route lands and every template already resolves it via `route()`, no
+  template changes needed. `/privacy` and `/terms` got real (if minimal, honest "not published yet")
+  pages instead of a similar fallback, since fabricating legal copy isn't something to improvise.
+
+### Live Demo quick-login
+
+Three cards (Super Admin / Admin-Owner / Hotel Manager) each submit a CSRF-protected POST to
+`/demo-login` (`App\Controllers\AuthController::demoLogin()`) carrying only a `role` key — never a
+password in the request or any client-side JS. The whole route 404s unless `config('app.demo_mode')`
+(env `DEMO_MODE`, default off — **must** be off before real customers exist) is true, and even then
+only logs into an account matching one of exactly three hardcoded emails **and** `users.is_demo = 1`
+(a real account that happened to reuse one of those emails could never be reached this way). Each
+card also shows its raw email/password in a `<details>` disclosure for logging in manually through
+the normal `/login` form.
+
+### `database/seeders/DemoUsersSeeder.php`
+
+Idempotent like every seeder here — upserts by email, safe to re-run. Seeds exactly the three demo
+accounts, a self-contained "Demo Grand Hotel" (3 rooms), and ~18 sample bookings for it (via the
+same `BookingCalculator` every other booking goes through) so the demo dashboards show a real trend,
+not a single flat data point. One deliberate, disclosed wrinkle: `admin@hotezo.com` already existed
+as the level-5 Super Admin `SuperAdminSeeder` creates by default — the landing page spec wants that
+exact email for the level-4 Admin/Owner demo account and says "update instead of duplicate," so this
+seeder repurposes that pre-existing account (`superadmin@hotezo.com`, new, becomes the actual Super
+Admin demo login instead). The seeder prints this out explicitly when it runs so it's never a silent
+surprise. `users.is_demo` (migration `0028`) marks all three, ready for a future nightly-reset job or
+for blocking self-service password changes on these specific accounts once that exists.
+
+### SEO & accessibility
+
+`partials/head-meta.php` gained a canonical URL, Open Graph `url`/`site_name`, Twitter card tags, and
+optional JSON-LD (`$structuredData`, rendered with `csp_nonce()` like every inline script — CSP's
+`script-src` governs `<script type="application/ld+json">` too, not just executable JS, a common
+gotcha). `<title>`/meta description use the exact copy requested. No new raster images were added —
+the hero mockup and OTA chips are CSS/canvas/text (matching the existing "no bundled OTA logos, no
+image pipeline" convention from the bookings list), so there was nothing to lazy-load there; hotel
+gallery photos on `/hotel/{slug}` do get `loading="lazy"`. Semantic landmarks (`<header>`, `<nav>`,
+`<main>`, `<footer>`) and the design system's existing `:focus-visible` ring cover keyboard nav.
+
+### Verified against the real app
+
+Every href on the rendered page (desktop and the mobile slide-over) was walked programmatically and
+confirmed to resolve — zero dead links. Scroll-triggered reveals and the count-up stats were
+confirmed to actually fire under a real incremental scroll (a naive full-page screenshot doesn't
+dispatch genuine scroll events, which briefly looked like a bug in testing before that distinction
+was clear). All three demo logins were exercised end-to-end through to `/dashboard`; `DEMO_MODE=false`
+was confirmed to both 404 the route and hide the demo cards; a CSRF-invalid and an unknown-`role`
+`/demo-login` attempt were both confirmed to fail closed (redirect back, no session established, checked
+via a follow-up authenticated-route request). Reduced-motion and a 390px mobile viewport (including
+the hamburger menu open/close and confirming no horizontal overflow) were checked in the same pass.
+Zero console errors, zero CSP violations throughout.
 
 ## Conventions
 

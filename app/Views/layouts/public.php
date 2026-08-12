@@ -6,12 +6,13 @@ use App\Core\View;
  * @var string $content
  * @var string $title
  * @var string $description
+ * @var array<string, mixed>|null $structuredData
  */
 ?>
 <!doctype html>
 <html lang="en">
 <head>
-<?= partial('head-meta', ['title' => $title ?? null, 'description' => $description ?? null]) ?>
+<?= partial('head-meta', ['title' => $title ?? null, 'description' => $description ?? null, 'structuredData' => $structuredData ?? null]) ?>
 </head>
 <body>
 <?= partial('nav-public') ?>

@@ -88,6 +88,64 @@ final class AuthController
         return Response::redirect(route('dashboard'));
     }
 
+    /**
+     * The landing page's Live Demo section — logs straight into one of
+     * the three fixed accounts App\Database\Seeders\DemoUsersSeeder
+     * creates, no password prompt. Entirely inert unless DEMO_MODE=true
+     * (see config/app.php), CSRF-protected like every other form, and
+     * restricted to an exact allowlist of demo emails rather than
+     * trusting the submitted role param to name an arbitrary user —
+     * the extra `is_demo = 1` check means even a real account that
+     * happened to reuse one of these emails could never be logged into
+     * this way.
+     */
+    public function demoLogin(Request $request): Response
+    {
+        if (!config('app.demo_mode', false)) {
+            return Response::html(view('errors/404', [], 'public'), 404);
+        }
+
+        if (!Csrf::verify($request->input('_csrf'))) {
+            Session::flash('error', 'Your session expired. Please try again.');
+
+            return Response::redirect(route('home') . '#demo');
+        }
+
+        $emails = [
+            'super_admin' => 'superadmin@hotezo.com',
+            'admin' => 'admin@hotezo.com',
+            'manager' => 'manager@hotezo.com',
+        ];
+
+        $role = (string) $request->input('role', '');
+        $email = $emails[$role] ?? null;
+
+        if ($email === null) {
+            Session::flash('error', 'Unknown demo role.');
+
+            return Response::redirect(route('home') . '#demo');
+        }
+
+        $user = Database::first('users', [
+            'email' => $email,
+            'is_demo' => 1,
+            'status' => 'active',
+            'is_deleted' => 0,
+        ]);
+
+        if ($user === null) {
+            Session::flash('error', 'Demo accounts aren\'t seeded yet — run "php cli seed".');
+
+            return Response::redirect(route('home') . '#demo');
+        }
+
+        Database::update('users', $user['id'], ['last_login' => date('Y-m-d H:i:s')]);
+        Auth::login($user);
+        Session::flash('success', 'Welcome — you\'re exploring Hotezo as ' . $user['full_name'] . '.');
+
+        return Response::redirect(route('dashboard'));
+    }
+
     public function logout(Request $request): Response
     {
         $userId = Auth::id();

@@ -9,6 +9,7 @@ use App\Controllers\HomeController;
 use App\Controllers\HotelController;
 use App\Controllers\HotelFilterController;
 use App\Controllers\NotificationController;
+use App\Controllers\PublicHotelController;
 use App\Controllers\RatePlanController;
 use App\Controllers\RoomController;
 use App\Controllers\SearchController;
@@ -23,10 +24,24 @@ use App\Middleware\RoleMiddleware;
  */
 return function (Router $router): void {
     $router->get('/', [HomeController::class, 'index'], name: 'home');
+    $router->get('/privacy', [HomeController::class, 'privacy'], name: 'privacy');
+    $router->get('/terms', [HomeController::class, 'terms'], name: 'terms');
+
+    // The public hotel directory can't live at /hotels — that path is
+    // already the auth-scoped admin Hotel Management list
+    // (App\Controllers\HotelController) registered below, and this
+    // router has no way to disambiguate two GET routes on the same
+    // path. /explore is the public-facing equivalent.
+    $router->get('/explore', [PublicHotelController::class, 'index'], name: 'public.hotels.index');
+    $router->get('/hotel/{slug}', [PublicHotelController::class, 'show'], name: 'public.hotels.show');
 
     $router->get('/login', [AuthController::class, 'showLogin'], name: 'login');
     $router->post('/login', [AuthController::class, 'login'], name: 'login.submit');
     $router->post('/logout', [AuthController::class, 'logout'], [AuthMiddleware::class], name: 'logout');
+
+    // The landing page's Live Demo section — see
+    // App\Controllers\AuthController::demoLogin() for the DEMO_MODE gate.
+    $router->post('/demo-login', [AuthController::class, 'demoLogin'], name: 'demo-login');
 
     $router->get('/dashboard', [DashboardController::class, 'index'], [
         AuthMiddleware::class,

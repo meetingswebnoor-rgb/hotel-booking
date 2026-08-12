@@ -14,6 +14,7 @@ import {
   initSearch,
   initNotifications,
   initFilterAutoSubmit,
+  initPublicNav,
   toast,
 } from './ui.js';
 import { initConfirmDialog, confirmDialog } from './confirm.js';
@@ -29,6 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSearch();
   initNotifications();
   initFilterAutoSubmit();
+  initPublicNav();
   initConfirmDialog();
   initHoverLift();
   initPageEnter('[data-animate], .app-content > *');
