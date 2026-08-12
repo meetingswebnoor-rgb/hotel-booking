@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Core\App;
 use App\Core\Auth;
+use App\Core\Csp;
 use App\Core\Csrf;
 use App\Core\Icons;
 use App\Core\Permission;
@@ -194,6 +195,19 @@ if (!function_exists('csrf_field')) {
     function csrf_field(): string
     {
         return Csrf::field();
+    }
+}
+
+if (!function_exists('csp_nonce')) {
+    /**
+     * The current request's CSP nonce — attach to any inline <script>
+     * that genuinely can't be external (see partials/head-meta.php's
+     * theme-flash-prevention script). Response::send() emits the
+     * matching Content-Security-Policy header via the same nonce.
+     */
+    function csp_nonce(): string
+    {
+        return Csp::nonce();
     }
 }
 

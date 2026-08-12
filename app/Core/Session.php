@@ -16,7 +16,24 @@ final class Session
         static $promoted = false;
 
         if (session_status() !== PHP_SESSION_ACTIVE) {
+            $lifetimeMinutes = (int) env('SESSION_LIFETIME', 120);
+
+            // Hardened cookie flags + strict mode (rejects session IDs the
+            // server never generated, closing session-fixation via a
+            // planted cookie) must be set before session_start().
+            ini_set('session.use_strict_mode', '1');
+            ini_set('session.use_only_cookies', '1');
+            ini_set('session.cookie_httponly', '1');
+
             session_name((string) env('SESSION_NAME', 'hotezo_session'));
+            session_set_cookie_params([
+                'lifetime' => $lifetimeMinutes * 60,
+                'path' => '/',
+                'domain' => '',
+                'secure' => Request::isSecureServer(),
+                'httponly' => true,
+                'samesite' => 'Lax',
+            ]);
             session_start();
         }
 

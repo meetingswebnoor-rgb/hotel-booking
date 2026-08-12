@@ -144,7 +144,7 @@ final class AuthController
             'path' => '/',
             'httponly' => true,
             'samesite' => 'Lax',
-            'secure' => !empty($_SERVER['HTTPS']),
+            'secure' => Request::isSecureServer(),
         ]);
     }
 

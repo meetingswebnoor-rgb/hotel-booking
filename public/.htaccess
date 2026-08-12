@@ -10,8 +10,10 @@ Options -MultiViews
 
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"
-    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Frame-Options "DENY"
     Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    Header set Strict-Transport-Security "max-age=31536000" env=HTTPS
 </IfModule>
 
 <FilesMatch "\.(env|json|lock|md)$">

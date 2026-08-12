@@ -31,6 +31,7 @@ if (is_file($composerAutoload)) {
 
 use App\Core\Auth;
 use App\Core\Env;
+use App\Core\Request;
 use App\Core\Session;
 use App\Core\View;
 
@@ -64,6 +65,21 @@ set_exception_handler(static function (Throwable $e): void {
 });
 
 if (PHP_SAPI !== 'cli') {
+    // Runs before Session::start() so an HTTP visitor never gets a
+    // session cookie set (and thus never establishes state) over an
+    // insecure connection. 308 preserves method + body across the
+    // redirect, unlike 301/302, so an in-flight POST isn't silently
+    // turned into a GET.
+    if (config('app.force_https') && !Request::isSecureServer()) {
+        $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+
+        if ($host !== '') {
+            header('Location: https://' . $host . $uri, true, 308);
+            exit;
+        }
+    }
+
     Session::start();
     Auth::attemptRememberLogin();
 }

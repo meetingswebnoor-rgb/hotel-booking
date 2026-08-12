@@ -17,7 +17,7 @@ $description ??= '';
 <meta name="csrf-token" content="<?= e(csrf_token()) ?>">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22><rect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%236366F1%22/></svg>">
 
-<script>
+<script nonce="<?= e(csp_nonce()) ?>">
   try {
     var storedTheme = localStorage.getItem('hotezo-theme');
     if (storedTheme) document.documentElement.setAttribute('data-theme', storedTheme);

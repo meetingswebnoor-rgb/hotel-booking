@@ -62,7 +62,7 @@ View::section('breadcrumbs');
   ]) ?>
 </div>
 
-<div data-dashboard-content>
+<div data-dashboard-content data-can-view-reports="<?= $canViewReports ? 'true' : 'false' ?>">
   <div class="showcase-grid mt-6" data-animate>
     <?php foreach ($kpiDefs as $kpi): ?>
       <?php if ($kpi['restricted']): ?>
@@ -180,6 +180,5 @@ View::section('breadcrumbs');
 </div>
 
 <?php View::section('scripts'); ?>
-<script>window.HotezoDashboard = { canViewReports: <?= $canViewReports ? 'true' : 'false' ?> };</script>
 <script type="module" src="<?= asset('js/dashboard.js') ?>"></script>
 <?php View::endSection(); ?>

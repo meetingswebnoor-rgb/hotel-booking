@@ -137,6 +137,34 @@ final class Request
         return (string) ($this->server['REMOTE_ADDR'] ?? '0.0.0.0');
     }
 
+    public function isSecure(): bool
+    {
+        return self::isSecureServer($this->server);
+    }
+
+    /**
+     * Static so it's usable before a Request exists (bootstrap.php's
+     * HTTPS-enforcement redirect runs before Request::capture()).
+     * Trusts X-Forwarded-Proto in addition to HTTPS since Hostinger
+     * (and most shared hosts) terminate TLS at a front-end proxy and
+     * forward plain HTTP to PHP.
+     *
+     * @param array<string, mixed>|null $server defaults to $_SERVER
+     */
+    public static function isSecureServer(?array $server = null): bool
+    {
+        $server ??= $_SERVER;
+
+        $https = $server['HTTPS'] ?? '';
+        if (is_string($https) && $https !== '' && strtolower($https) !== 'off') {
+            return true;
+        }
+
+        $forwardedProto = $server['HTTP_X_FORWARDED_PROTO'] ?? '';
+
+        return is_string($forwardedProto) && strtolower($forwardedProto) === 'https';
+    }
+
     public function setScope(string $key, mixed $value): void
     {
         $this->scope[$key] = $value;

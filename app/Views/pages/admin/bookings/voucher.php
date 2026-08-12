@@ -9,7 +9,7 @@ $nights = (int) $booking['nights'];
 $grandTotal = (float) $booking['total_room_rent'] + (float) $booking['hotel_gst'];
 ?>
 <div class="voucher-actions no-print">
-  <button type="button" class="btn btn-primary" onclick="window.print()">
+  <button type="button" class="btn btn-primary" data-print-trigger>
     <?= icon('printer', 'icon icon-sm') ?>
     <span>Print</span>
   </button>

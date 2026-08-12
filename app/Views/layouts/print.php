@@ -17,5 +17,6 @@
 </head>
 <body class="print-body">
 <?= $content ?>
+<script type="module" src="<?= asset('js/voucher-print.js') ?>"></script>
 </body>
 </html>

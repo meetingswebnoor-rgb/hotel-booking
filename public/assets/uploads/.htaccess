@@ -1,0 +1,21 @@
+# Prevent execution of any script inside the uploads directory. Even
+# though App\Core\FileUpload validates real file content (finfo) and
+# always writes a fresh UUID name, this is defense-in-depth: an
+# uploaded file can never run as a script here regardless.
+
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+
+<FilesMatch "\.(php|phtml|php3|php4|php5|php7|php8|phar|pl|py|jsp|asp|aspx|sh|cgi|exe)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

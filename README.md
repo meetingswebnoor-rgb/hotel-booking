@@ -599,6 +599,97 @@ is orchestration rather than money math.
   `HotelScopeMiddleware` and `$request->scope('hotel_ids')` — see "Authentication &
   authorization" above.
 
+## Security
+
+- **Transport:** `config('app.force_https')` (env `APP_FORCE_HTTPS`, defaults to true whenever
+  `APP_ENV != local`) 308-redirects any HTTP request to HTTPS in `app/bootstrap.php`, before a
+  session cookie is ever set. `App\Core\Request::isSecureServer()` checks both `$_SERVER['HTTPS']`
+  and `X-Forwarded-Proto`, since Hostinger (and most shared hosts) terminate TLS at a front-end
+  proxy and hand PHP a plain HTTP request. `Strict-Transport-Security` is sent (1 year, no
+  `preload`) whenever a request actually arrives over HTTPS — both from PHP
+  (`Response::send()`) and, for static assets Apache serves directly, `public/.htaccess`.
+- **Response headers:** every response (`Response::send()`, plus `public/.htaccess` for static
+  assets that never reach PHP) carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+  `Referrer-Policy: strict-origin-when-cross-origin`, a locked-down `Permissions-Policy`, and a
+  real `Content-Security-Policy` (`App\Core\Csp`) — `script-src` allows only `'self'`, the exact
+  two CDN hosts the layouts load from (cdnjs, jsdelivr), and a per-request nonce
+  (`csp_nonce()` / `App\Core\Csp::nonce()`) for the one inline script that must run before first
+  paint (the theme-flash-prevention snippet in `partials/head-meta.php`) — no
+  `'unsafe-inline'`/`'unsafe-eval'` for scripts. `style-src` keeps `'unsafe-inline'` since the
+  views use inline `style=""` attributes throughout; that's a far smaller risk surface than
+  inline script execution. If a future page needs an inline `<script>`, give it
+  `nonce="<?= e(csp_nonce()) ?>"` rather than loosening the policy.
+- **Sessions:** hardened cookie flags (`httponly`, `secure` when the request is HTTPS, `SameSite=Lax`,
+  `session.use_strict_mode`) are set in `App\Core\Session::start()` before `session_start()`;
+  lifetime comes from `SESSION_LIFETIME` (minutes). `Auth::login()` regenerates the session ID
+  (fixation protection) and role/level are cached in-session at login time (see "Authentication &
+  authorization"). The remember-me cookie is SHA-256-hashed at rest, `hash_equals()`-compared, and
+  its `secure` flag now uses the same `Request::isSecureServer()` check as everything else.
+- **Uploads:** `public/assets/uploads/.htaccess` blocks script execution in that directory
+  outright (`Require all denied` on script extensions, `php_flag engine off`) — on top of
+  `App\Core\FileUpload` already validating real file content via `finfo` (never client-sent MIME
+  type or filename) and always writing under a fresh UUID name, so even a validation bypass can't
+  turn into remote code execution.
+- **Filesystem exposure:** a deny-all root `.htaccess` (one level above `public/`) is
+  defense-in-depth against a host ever pointing its document root at the repo root instead of
+  `public/` — the app's actual docroot requirement (see "Setup" and "Deployment" below) is what
+  really matters; this just fails safe if that's ever misconfigured.
+- **Already in place from earlier modules:** every form is CSRF-protected (`csrf_field()` /
+  `Csrf::verify()`), every query is a prepared statement (`App\Core\Database` — no raw string
+  interpolation of values, ever), all output is escaped with `e()`, passwords are bcrypt-hashed,
+  login is rate-limited per-account (`config/auth.php`), and every hotel-scoped query respects
+  `$request->scope('hotel_ids')`. See "Conventions" above and `App\Core\Permission` for the
+  authorization model.
+
+## Deployment
+
+### Local (XAMPP)
+
+Already covered in "Setup" above — `php -S localhost:8000 -t public` from the repo root, or an
+Apache vhost whose **document root is `public/`**, not the repo root (there is no root-level route
+handling; the front controller is `public/index.php`). `APP_ENV=local` in `.env` keeps
+`APP_FORCE_HTTPS` off by default so a plain-HTTP local server doesn't redirect-loop itself.
+
+### Hostinger (or any shared/VPS host)
+
+1. **Upload the code.** Prefer deploying via Git (Hostinger's hPanel supports connecting a GitHub
+   repo directly, or `git clone`/`git pull` over SSH on Business/Cloud/VPS plans) over a manual
+   zip/FTP upload, so `git pull` is how updates ship later too.
+2. **Set the domain's document root to `public/`**, not the repo root — in hPanel this is under
+   the domain/subdomain's settings ("Document Root" / "Change PHP Version & Settings" area for the
+   site). This is the single most important step; skipping it exposes the entire repo (migrations,
+   `.env.example`, source) at the domain root instead of running the app. (The new root-level
+   `.htaccess` denies access outright if this step is missed, but the app also simply won't work —
+   there's no substitute for setting it correctly.)
+3. **Select PHP 8.2+** for the site (hPanel -> PHP Configuration).
+4. **Install dependencies.** If the plan includes SSH access, `composer install --no-dev
+   --optimize-autoloader` from the repo root. Without SSH, `App\Core\Mailer` won't work until
+   PHPMailer is present some other way (e.g. uploading a pre-built `vendor/` from a local
+   `composer install`) — everything else in the app runs fine without Composer via the manual
+   PSR-4 autoloader fallback in `app/bootstrap.php`.
+5. **Create the MySQL database** in hPanel -> Databases, and copy its generated name/user/password
+   (never reuse XAMPP's local `root`/blank-password credentials here).
+6. **Configure `.env`** on the server (copy from `.env.example`, never commit a real `.env` — it's
+   already gitignored): real `DB_*` credentials, `APP_ENV=production`, `APP_DEBUG=false` (always —
+   a stack trace on a live site is an information leak), `APP_URL=https://yourdomain.tld`,
+   real `MAIL_*` SMTP credentials, and a freshly generated `APP_KEY`. Leave `APP_FORCE_HTTPS`
+   unset (defaults on for non-local) unless SSL isn't active yet — see the next step.
+7. **Enable SSL** (hPanel offers free Let's Encrypt certificates per domain) *before* relying on
+   `APP_FORCE_HTTPS`'s default-on redirect, or the site will be briefly unreachable if HTTPS isn't
+   actually served yet; set `APP_FORCE_HTTPS=false` temporarily if you deploy before the cert is
+   live, then unset it once SSL is confirmed working.
+8. **Migrate and seed** via SSH: `php cli migrate` then `php cli seed` (copy the printed Super
+   Admin password immediately — see "Setup" above for why it's never shown again). Without SSH,
+   these need to run some other way (e.g. a one-off script exposed temporarily and deleted, or a
+   local MySQL client pointed at the remote DB via a temporary remote-access rule in hPanel).
+9. **Confirm `public/assets/uploads/` is writable** by the PHP process (hotel hero/gallery images
+   go there via `App\Core\FileUpload`) — typically already correct on shared hosting, but check
+   permissions if uploads start failing silently.
+10. **Verify the security posture** once live: confirm the site redirects HTTP -> HTTPS, and check
+    response headers (`curl -sI https://yourdomain.tld`) show `Strict-Transport-Security`,
+    `Content-Security-Policy`, `X-Frame-Options: DENY`, and no server-side stack traces on a
+    deliberately-triggered error.
+
 ## What's next
 
 User management (create/edit users — enforcing `Permission::canManageRoleLevel()`, and giving the

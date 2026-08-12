@@ -1,0 +1,16 @@
+# This repo's document root must be public/ (see README's Setup and
+# Deployment sections) — public/index.php is the only front controller
+# and public/.htaccess carries the rewrite rules + security headers.
+#
+# This file is defense-in-depth for the case where a host (or a local
+# Apache vhost) ever gets pointed at this directory itself instead:
+# deny everything rather than risk directory listings, source files,
+# migrations revealing schema, or .env being served.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

@@ -47,8 +47,39 @@ final class Response
             foreach ($this->headers as $name => $value) {
                 header("{$name}: {$value}");
             }
+
+            foreach (self::securityHeaders() as $name => $value) {
+                header("{$name}: {$value}");
+            }
         }
 
         echo $this->content;
+    }
+
+    /**
+     * Applies to every response (HTML/JSON/redirect alike) since this
+     * is the one place every request funnels through before output —
+     * static assets never hit this (Apache serves them directly), so
+     * public/.htaccess carries the equivalent headers for those.
+     *
+     * @return array<string, string>
+     */
+    private static function securityHeaders(): array
+    {
+        $headers = [
+            'X-Content-Type-Options' => 'nosniff',
+            'X-Frame-Options' => 'DENY',
+            'Referrer-Policy' => 'strict-origin-when-cross-origin',
+            'Permissions-Policy' => 'geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()',
+            'Content-Security-Policy' => Csp::header(),
+        ];
+
+        if (Request::isSecureServer()) {
+            // 1 year, no includeSubDomains/preload — this app doesn't
+            // control every subdomain the parent domain might have.
+            $headers['Strict-Transport-Security'] = 'max-age=31536000';
+        }
+
+        return $headers;
     }
 }

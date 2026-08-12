@@ -2,6 +2,7 @@
 .env
 /public/assets/uploads/*
 !/public/assets/uploads/.gitkeep
+!/public/assets/uploads/.htaccess
 .DS_Store
 Thumbs.db
 *.log

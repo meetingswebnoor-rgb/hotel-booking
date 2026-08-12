@@ -224,7 +224,7 @@ async function loadDashboard() {
   renderKpis(data.kpis);
   renderCharts(data.charts);
   renderBreakdown(data.breakdown);
-  renderRecentBookings(data.recent_bookings, window.HotezoDashboard?.canViewReports ?? false);
+  renderRecentBookings(data.recent_bookings, content?.dataset.canViewReports === 'true');
 }
 
 function initDrillDown() {
