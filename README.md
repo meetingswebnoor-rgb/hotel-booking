@@ -422,6 +422,31 @@ centered empty state (`has_data: false` in the JSON) rather than a wall of zeros
 chart also falls back to its own small empty state if its own dataset happens to be empty while
 others aren't.
 
+### Role differentiation
+
+`can('reports', 'view')` alone was never enough to make the three product-brief dashboards (Super
+Admin / Hotel Admin / Hotel Manager-Front Desk) actually look different — `admin` (level 4) and
+`hotel_manager` (level 3) both have it, so the only thing that differed between them was the
+underlying *data*, not which widgets rendered. Two more gates were added on top:
+
+- **`$isMultiHotel`** (`DashboardController::baseHotelCount()`, computed from the same
+  `$request->scope('hotel_ids')` `HotelScopeMiddleware` sets) hides the Total Hotels KPI, the Top 5
+  Hotels chart, and the Hotel Breakdown table whenever the caller's access resolves to exactly one
+  hotel — a "Top 5" ranking of one hotel against itself is noise, not information. This is
+  data-driven, not role-hardcoded: it's what actually separates `hotel_manager` (genuinely scoped to
+  their assigned hotels) from `admin`/`super_admin` (both have `Auth::hasGlobalHotelAccess()`, i.e.
+  *every* hotel, by design — see "Authentication & authorization" above; a demo `admin` account
+  assigned to only one hotel via `user_hotels` still sees the full portfolio, because the role level
+  itself grants global access regardless of that assignment).
+- **Quick Actions** — a small panel of admin-tool shortcuts (Manage Hotels, and placeholders for
+  Users/Trash/Settings) gated `role_at_least(RoleLevel::SUPER_ADMIN)`, the same convention as the
+  sidebar's Trash link. This is what visibly separates Super Admin from Admin, since those two share
+  identical hotel scope and reports access otherwise.
+- **Today's Operations** — a new panel (guest name, hotel, status) for bookings checking in or
+  checking out *today*, scoped the same way as everything else, shown to every role since knowing
+  what's happening today is operationally useful regardless of level — closer to the "Front Desk /
+  Manager: fast check-in/out" persona than a financial widget would be.
+
 ## Booking entry form
 
 `GET /bookings` (list), `GET /bookings/create` / `POST /bookings` (new), `GET /bookings/{id}/edit`
@@ -730,6 +755,13 @@ Admin demo login instead). The seeder prints this out explicitly when it runs so
 surprise. `users.is_demo` (migration `0028`) marks all three, ready for a future nightly-reset job or
 for blocking self-service password changes on these specific accounts once that exists.
 
+The bulk booking history above only seeds once — re-running `php cli seed` on a later day would
+otherwise leave the dashboard's Today's Operations panel (see "Dashboard" → "Role differentiation")
+permanently empty, since every seeded date drifts into the past. `seedTodayOperations()` upserts two
+fixed-`booking_id` bookings (one checking in, one checking out) to always land on *today* on every
+single seed run, so the demo always has something to show there regardless of when it was last
+seeded — a small stand-in for the nightly-reset job mentioned above.
+
 ### SEO & accessibility
 
 `partials/head-meta.php` gained a canonical URL, Open Graph `url`/`site_name`, Twitter card tags, and
@@ -810,6 +842,32 @@ Zero console errors, zero CSP violations throughout.
   login is rate-limited per-account (`config/auth.php`), and every hotel-scoped query respects
   `$request->scope('hotel_ids')`. See "Conventions" above and `App\Core\Permission` for the
   authorization model.
+
+## Performance: scroll smoothness
+
+`backdrop-filter` (the glassmorphism look throughout this app) is expensive to recompute on every
+scroll frame unless the element carrying it is promoted to its own GPU-composited layer — sticky
+bars (`.topbar`, `.public-nav`) and continuously-animating elements (the landing page's hero
+parallax shapes, aurora background, OTA marquee) now carry `transform: translateZ(0)` /
+`will-change: transform` for exactly that reason.
+
+Worth knowing if this needs revisiting: an early version of this fix applied the same promotion to
+the shared `.glass` primitive itself — every glass card on the page, not just the handful that are
+sticky or animating. That measured *worse*, not better (a classic "layer explosion": dozens of
+separate GPU layers cost more to manage than a moderate number of ordinary paint operations), so it
+was reverted in favor of promoting only the specific elements that are persistently visible or
+actively transformed during scroll. Don't reintroduce a blanket `.glass` promotion without
+re-measuring.
+
+Also worth knowing: **headless Chromium renders via SwiftShader (software) by default**, not real
+GPU hardware — the same page measured ~29 FPS / 63% dropped frames headless and a rock-solid 60 FPS
+/ 0 dropped frames in a real (headed, hardware-accelerated) browser on the same machine, before *and
+after* this fix, on this dev hardware. If a future scroll-performance investigation needs
+before/after numbers, launch Playwright with `headless: false` — headless measurements alone can
+point in the wrong direction, or make a real fix look like a regression. The applied fix is still
+correct, standard practice for this failure mode and costs nothing on hardware where it makes no
+measurable difference; it exists for the lower-end devices this dev machine's integrated GPU didn't
+struggle to composite.
 
 ## Deployment
 

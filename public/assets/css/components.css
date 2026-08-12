@@ -655,6 +655,11 @@ table.table {
   border-bottom: 1px solid var(--border);
   background: var(--overlay);
   backdrop-filter: blur(16px);
+  /* Sticky + backdrop-filter is the single most expensive combination
+     to scroll past — this bar is on-screen for the entire page, so
+     keep its GPU layer warm rather than recomposited every frame. */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .topbar__actions {

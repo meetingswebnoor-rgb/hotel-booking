@@ -77,6 +77,7 @@ return new class extends Seeder {
         $this->assignToHotel($manager, $hotelId);
 
         $this->seedBookings($hotelId);
+        $this->seedTodayOperations($hotelId);
 
         $this->log('Seeded demo accounts:');
         $this->log('  Super Admin    superadmin@hotezo.com / Super@Hotezo2026');
@@ -350,5 +351,107 @@ return new class extends Seeder {
         }
 
         $this->log('Seeded ' . self::BOOKING_COUNT . ' sample bookings for Demo Grand Hotel.');
+    }
+
+    /**
+     * The bulk history above (seedBookings()) only runs once — re-running
+     * `php cli seed` on a later day would otherwise leave the dashboard's
+     * "Today's Operations" panel (App\Controllers\DashboardController::
+     * todayOperations()) permanently empty, since every seeded date would
+     * have drifted into the past. These two bookings are upserted by a
+     * fixed booking_id on every single seed run instead, so the demo
+     * always has at least one check-in and one check-out due "today" —
+     * a lightweight stand-in for the nightly-reset job this seeder's
+     * class docblock earmarks as future work.
+     */
+    private function seedTodayOperations(string $hotelId): void
+    {
+        $rooms = Database::all('rooms', ['hotel_id' => $hotelId, 'is_deleted' => 0]);
+        $hotel = Database::first('hotels', ['id' => $hotelId]);
+        $directOta = Database::first('otas', ['name' => 'Direct Booking']);
+
+        if ($rooms === [] || $hotel === null) {
+            return;
+        }
+
+        $today = new DateTimeImmutable();
+        $room = $rooms[0];
+
+        $entries = [
+            [
+                'booking_id' => 'HTZ-DEMO-TODAY-CHECKIN',
+                'guest_name' => 'Priya Nair',
+                'checkin' => $today,
+                'checkout' => $today->modify('+2 days'),
+                'status' => 'confirmed',
+            ],
+            [
+                'booking_id' => 'HTZ-DEMO-TODAY-CHECKOUT',
+                'guest_name' => 'Arjun Mehta',
+                'checkin' => $today->modify('-2 days'),
+                'checkout' => $today,
+                'status' => 'checked_in',
+            ],
+        ];
+
+        foreach ($entries as $entry) {
+            $nights = BookingCalculator::nights($entry['checkin']->format('Y-m-d'), $entry['checkout']->format('Y-m-d'));
+            $roomLine = [
+                'room_type' => $room['room_type'],
+                'rate_plan_id' => null,
+                'adults' => min((int) $room['max_adults'], 2) ?: 1,
+                'children' => 0,
+                'quantity' => 1,
+                'nightly_rate' => (float) $room['base_price'],
+            ];
+            $calc = BookingCalculator::calculate([$roomLine], $nights, 0.0, (float) $hotel['commission_pct'], 'online');
+
+            $data = [
+                'hotel_id' => $hotelId,
+                'ota_id' => $directOta['id'] ?? null,
+                'guest_name' => $entry['guest_name'],
+                'guest_mobile' => '9' . substr(md5($entry['booking_id']), 0, 9),
+                'guest_email' => strtolower(str_replace(' ', '.', $entry['guest_name'])) . '@example.com',
+                'booking_date' => $entry['checkin']->modify('-3 days')->format('Y-m-d'),
+                'checkin_date' => $entry['checkin']->format('Y-m-d'),
+                'checkout_date' => $entry['checkout']->format('Y-m-d'),
+                'nights' => $nights,
+                'rooms' => json_encode([$roomLine]),
+                'adults' => $roomLine['adults'],
+                'children' => 0,
+                'total_room_rent' => $calc['total_room_rent'],
+                'hotel_gst' => $calc['hotel_gst'],
+                'tds' => $calc['tds'],
+                'tcs' => $calc['tcs'],
+                'ota_commission' => $calc['ota_commission'],
+                'hotezo_commission' => $calc['hotezo_commission'],
+                'gst_on_commission' => $calc['gst_on_commission'],
+                'total_commission_taxes' => $calc['total_commission_taxes'],
+                'hotel_earning' => $calc['hotel_earning'],
+                'hotel_collection' => $calc['hotel_collection'],
+                'hotezo_collection' => $calc['hotezo_collection'],
+                'status' => $entry['status'],
+                'ota_payment_status' => 'pending',
+                'source' => 'online',
+                'updated_at' => $this->now(),
+            ];
+
+            $existing = Database::first('bookings', ['booking_id' => $entry['booking_id']]);
+
+            if ($existing !== null) {
+                Database::update('bookings', $existing['id'], $data);
+                continue;
+            }
+
+            Database::insert('bookings', array_merge($data, [
+                'id' => uuid(),
+                'booking_id' => $entry['booking_id'],
+                'created_at' => $this->now(),
+                'owner_role' => 'super_admin',
+                'visibility_scope' => 'hotel',
+            ]));
+        }
+
+        $this->log('Refreshed the two always-current "today" demo bookings.');
     }
 };

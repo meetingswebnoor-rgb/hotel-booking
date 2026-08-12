@@ -25,6 +25,10 @@
   animation: aurora-drift 18s ease-in-out infinite alternate;
   pointer-events: none;
   z-index: -2;
+  /* A blurred element animating translate/scale forever, sitting behind
+     everything else on the page, is exactly the kind of layer that
+     should be pre-composited once rather than repainted on scroll. */
+  will-change: transform;
 }
 
 @keyframes aurora-drift {
@@ -45,6 +49,11 @@
   background: var(--glass);
   border: 1px solid var(--glass-border);
   backdrop-filter: blur(8px);
+  /* These are both blurred AND actively transformed on every scroll
+     tick (landing.js's scrub-linked parallax) — the single most
+     jank-prone combination on this page without a promoted layer. */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .hero__shape--1 { top: 12%; left: 4%; width: 90px; height: 90px; transform: rotate(-12deg); }
@@ -319,6 +328,7 @@
   gap: var(--space-4);
   width: max-content;
   animation: marquee-scroll 32s linear infinite;
+  will-change: transform;
 }
 
 .marquee--paused .marquee__track {

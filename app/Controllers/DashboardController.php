@@ -35,9 +35,38 @@ final class DashboardController
             'roleName' => Auth::roleName(),
             'roleLevel' => Auth::level(),
             'canViewReports' => can('reports', 'view'),
+            // Cross-hotel comparison widgets (Total Hotels KPI, Top 5
+            // Hotels chart, the breakdown table) are meaningless with
+            // only one hotel in scope — a "Top 5" ranking of one hotel
+            // against itself, or a "Total Hotels: 1" KPI, isn't useful
+            // information, it's just noise. Deliberately based on the
+            // user's *actual* permission scope (a role_manager assigned
+            // to one hotel, or an admin/super_admin who only has one
+            // hotel in the system) rather than hardcoding role names —
+            // this is what actually differentiates a hotel_manager's
+            // dashboard from an admin's/super_admin's today, since both
+            // of those roles have global (all-hotel) access by design
+            // (see README "Authentication & authorization").
+            'isMultiHotel' => $this->baseHotelCount($request) > 1,
         ], 'admin');
 
         return Response::html($html);
+    }
+
+    /**
+     * The permission-based scope only (not drill-down-narrowed, since
+     * this backs the initial server-rendered shell — the drill-down
+     * param only exists once the page is already interactive).
+     */
+    private function baseHotelCount(Request $request): int
+    {
+        $hotelIds = $request->scope('hotel_ids');
+
+        if ($hotelIds !== null) {
+            return count($hotelIds);
+        }
+
+        return (int) Database::query('SELECT COUNT(*) FROM hotels WHERE is_deleted = 0')->fetchColumn();
     }
 
     public function data(Request $request): Response
@@ -107,8 +136,42 @@ final class DashboardController
             'charts' => $charts,
             'breakdown' => $canViewReports ? $this->perHotelBreakdown($hotelIds, $windowStart, $windowEnd) : [],
             'recent_bookings' => $this->recentBookings($hotelIds, $canViewReports),
+            'today' => $this->todayOperations($hotelIds),
             'drill_down_hotel_id' => $request->query('hotel_id'),
         ]);
+    }
+
+    /**
+     * Bookings checking in or checking out today, scoped like
+     * everything else here — the "Front Desk / Manager" persona's
+     * actual day-to-day (see README "App shell"/product positioning),
+     * shown to every role since knowing what's happening today is
+     * useful regardless of level, not gated behind can('reports','view')
+     * since it's operational, not financial.
+     *
+     * @param array<int, string>|null $hotelIds
+     * @return array{checkins: array<int, array<string, mixed>>, checkouts: array<int, array<string, mixed>>}
+     */
+    private function todayOperations(?array $hotelIds): array
+    {
+        $today = date('Y-m-d');
+
+        $fetch = static function (string $dateColumn) use ($hotelIds, $today): array {
+            [$scopeSql, $scopeParams] = Database::scopeCondition($hotelIds, 'b.hotel_id');
+            $sql = "SELECT b.booking_id, b.guest_name, b.status, h.name AS hotel_name
+                    FROM bookings b JOIN hotels h ON h.id = b.hotel_id
+                    WHERE b.is_deleted = 0 AND b.{$dateColumn} = ?
+                          AND b.status NOT IN ('cancelled', 'rejected', 'no_show') {$scopeSql}
+                    ORDER BY b.guest_name
+                    LIMIT 8";
+
+            return Database::query($sql, [$today, ...$scopeParams])->fetchAll();
+        };
+
+        return [
+            'checkins' => $fetch('checkin_date'),
+            'checkouts' => $fetch('checkout_date'),
+        ];
     }
 
     /**

@@ -184,6 +184,50 @@ function renderRecentBookings(rows, canViewReports) {
     .join('');
 }
 
+function renderTodayList(rows, listSelector, emptySelector) {
+  const list = document.querySelector(listSelector);
+  const empty = document.querySelector(emptySelector);
+  if (!list) return;
+
+  if (!rows.length) {
+    list.innerHTML = '';
+    if (empty) empty.hidden = false;
+    return;
+  }
+
+  if (empty) empty.hidden = true;
+  list.innerHTML = rows
+    .map(
+      (row) => `
+        <li class="today-ops-item">
+          <span>
+            <span class="today-ops-item__guest">${row.guest_name}</span><br>
+            <span class="today-ops-item__hotel">${row.hotel_name} &middot; ${row.booking_id}</span>
+          </span>
+          <span class="badge ${statusBadgeClass(row.status)}">${statusLabel(row.status)}</span>
+        </li>
+      `
+    )
+    .join('');
+}
+
+function renderToday(today) {
+  const skeleton = document.querySelector('[data-today-skeleton]');
+  const content = document.querySelector('[data-today-content]');
+  if (!content) return;
+
+  if (skeleton) skeleton.hidden = true;
+  content.hidden = false;
+
+  renderTodayList(today.checkins, '[data-today-checkins-list]', '[data-today-checkins-empty]');
+  renderTodayList(today.checkouts, '[data-today-checkouts-list]', '[data-today-checkouts-empty]');
+
+  const checkinsCount = document.querySelector('[data-today-checkins-count]');
+  const checkoutsCount = document.querySelector('[data-today-checkouts-count]');
+  if (checkinsCount) checkinsCount.textContent = String(today.checkins.length);
+  if (checkoutsCount) checkoutsCount.textContent = String(today.checkouts.length);
+}
+
 function renderDrilldownBanner(hotelName) {
   const banner = document.querySelector('[data-drilldown-banner]');
   if (!banner) return;
@@ -223,6 +267,7 @@ async function loadDashboard() {
 
   renderKpis(data.kpis);
   renderCharts(data.charts);
+  renderToday(data.today);
   renderBreakdown(data.breakdown);
   renderRecentBookings(data.recent_bookings, content?.dataset.canViewReports === 'true');
 }

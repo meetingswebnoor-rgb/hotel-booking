@@ -15,6 +15,10 @@
   background: transparent;
   border-bottom: 1px solid transparent;
   transition: background var(--dur-base) var(--ease-out-3), border-color var(--dur-base) var(--ease-out-3), backdrop-filter var(--dur-base);
+  /* Same GPU-layer promotion as .topbar — this bar is sticky for the
+     entire page and gains backdrop-filter on scroll (.public-nav--scrolled). */
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .public-nav--scrolled {
@@ -393,6 +397,54 @@
 
 .breakdown-row.active {
   background: var(--gradient-primary-soft);
+}
+
+/* --------------------------- Today's Operations panel -------------------------- */
+.today-ops-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+}
+
+.today-ops-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9375rem;
+  margin-bottom: var(--space-3);
+}
+
+.today-ops-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.today-ops-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  font-size: 0.875rem;
+}
+
+.today-ops-item__guest {
+  font-weight: 600;
+  color: var(--text-high);
+}
+
+.today-ops-item__hotel {
+  font-size: 0.75rem;
+  color: var(--text-low);
+}
+
+@media (max-width: 700px) {
+  .today-ops-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ------------------------------ Component showcase (dev) ---------------------------- */
