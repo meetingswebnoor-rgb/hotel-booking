@@ -380,8 +380,8 @@ View::section('styles');
       <p>List your property, connect your OTAs, and let Hotezo handle every commission and tax
         calculation from the first booking onward.</p>
       <div class="final-cta__actions">
-        <a href="<?= e($registerUrl) ?>" class="btn" style="background:#fff;color:var(--color-primary);">List Your Hotel</a>
-        <a href="#demo" class="btn btn-ghost">Book a Live Demo</a>
+        <a href="<?= e($registerUrl) ?>" class="btn btn-primary btn-lg">List Your Hotel</a>
+        <a href="#demo" class="btn btn-ghost btn-lg">Book a Live Demo</a>
       </div>
     </div>
   </div>
