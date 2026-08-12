@@ -1,0 +1,285 @@
+/* ==========================================================================
+   AUTH.CSS — the login page only (app/Views/pages/auth/login.php), loaded
+   via its own View 'styles' section same as landing.css is for the home
+   page. Split-card layout: a badge-topped glass card holding an
+   illustration/Lottie panel on the left and the sign-in form on the right.
+   ========================================================================== */
+
+.auth-page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) var(--space-6);
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.auth-page__glow {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 18% 24%, rgba(16, 185, 129, 0.22), transparent 42%),
+    radial-gradient(circle at 82% 18%, rgba(99, 102, 241, 0.28), transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(6, 182, 212, 0.22), transparent 50%);
+  animation: auth-glow-drift 18s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes auth-glow-drift {
+  0% { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-3%, 3%) scale(1.08); }
+}
+
+.auth-card-v2 {
+  position: relative;
+  width: 100%;
+  max-width: 1040px;
+  padding: var(--space-10);
+}
+
+.auth-card-v2__badge {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--gradient-primary);
+  color: #fff;
+  box-shadow: var(--shadow-lift);
+  border: 4px solid var(--bg);
+}
+
+.auth-card-v2__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-10);
+  align-items: center;
+}
+
+/* ------------------------------ Left: illustration ------------------------------ */
+.auth-illustration {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-right: var(--space-6);
+  border-right: 1px solid var(--border);
+}
+
+.auth-illustration__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-full);
+  background: var(--gradient-primary-soft);
+  color: var(--color-primary-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.auth-illustration__art {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin: var(--space-4) 0;
+}
+
+.auth-illustration__art dotlottie-wc {
+  max-width: 100%;
+}
+
+.auth-illustration__heading {
+  margin-top: var(--space-2);
+}
+
+.auth-illustration__desc {
+  margin-top: var(--space-3);
+}
+
+.auth-illustration__tagline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-6);
+  font-size: 0.8125rem;
+  color: var(--text-low);
+}
+
+.auth-illustration__tagline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-emerald);
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  animation: auth-tagline-pulse 2.2s ease-out infinite;
+}
+
+@keyframes auth-tagline-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5); }
+  70% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+/* -------------------------------- Right: form panel ------------------------------- */
+.auth-form-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-form-panel__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  margin-bottom: var(--space-6);
+}
+
+.auth-form-panel__footer {
+  margin-top: var(--space-6);
+  font-size: 0.8125rem;
+  color: var(--text-low);
+  text-align: center;
+}
+
+.auth-form-panel__footer span {
+  color: var(--color-primary-2);
+  font-weight: 600;
+  cursor: default;
+}
+
+/* Icon-prefixed email/password fields */
+.input-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon__icon {
+  position: absolute;
+  left: var(--space-3);
+  color: var(--text-low);
+  pointer-events: none;
+  display: flex;
+}
+
+.input-icon__field {
+  padding-left: 2.5rem;
+}
+
+.input-icon__field--with-toggle {
+  padding-right: 2.5rem;
+}
+
+.input-icon__toggle {
+  position: absolute;
+  right: var(--space-3);
+  color: var(--text-low);
+  display: flex;
+  transition: color var(--dur-fast);
+}
+
+.input-icon__toggle:hover {
+  color: var(--text-high);
+}
+
+/* Two stacked icons (eye / eye-off) — data-password-toggle in auth.js
+   flips which one is visible instead of swapping innerHTML, so the SVG
+   markup icon() rendered server-side never needs to be duplicated in JS. */
+.input-icon__toggle svg:last-child {
+  display: none;
+}
+
+.input-icon__toggle.is-visible svg:first-child {
+  display: none;
+}
+
+.input-icon__toggle.is-visible svg:last-child {
+  display: block;
+}
+
+.auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.auth-row__forgot {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-primary-2);
+  cursor: default;
+}
+
+.auth-divider {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: var(--space-6) 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--text-low);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.auth-divider span {
+  padding: 0 var(--space-3);
+  white-space: nowrap;
+}
+
+.auth-google-btn {
+  gap: var(--space-3);
+}
+
+/* --------------------------------------- Responsive -------------------------------------- */
+@media (max-width: 900px) {
+  .auth-card-v2 {
+    padding: var(--space-8) var(--space-6);
+  }
+
+  .auth-card-v2__grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+
+  .auth-illustration {
+    padding-right: 0;
+    padding-bottom: var(--space-6);
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    text-align: center;
+  }
+
+  .auth-illustration__tagline {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .auth-page {
+    padding: var(--space-8) var(--space-4);
+  }
+
+  .auth-card-v2 {
+    padding: var(--space-8) var(--space-4);
+  }
+}

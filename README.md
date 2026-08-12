@@ -231,9 +231,22 @@ hotels listed in `user_hotels` for that user (`App\Core\Auth::hasGlobalHotelAcce
 ### Login
 
 `GET /login` / `POST /login` / `POST /logout` (`app/Controllers/AuthController.php`,
-[app/Views/pages/auth/login.php](app/Views/pages/auth/login.php)). Split-screen glassmorphism —
-an animated gradient hero on the left (`layouts/auth.php`, no nav/footer chrome), the form on the
-right. Behavior:
+[app/Views/pages/auth/login.php](app/Views/pages/auth/login.php), styles in
+`public/assets/css/auth.css`). A single glass card, split into an illustration panel and a form
+panel, floating over an ambient glow (`layouts/auth.php`, no nav/footer chrome). The left panel
+runs a `<dotlottie-wc>` Lottie animation loaded from unpkg.com (JS) and lottie.host (the animation
+JSON) — `App\Core\Csp` allowlists both, plus `cdn.jsdelivr.net` in `connect-src` for the WASM
+binary the renderer actually fetches at runtime (found by watching real
+`securitypolicyviolation` events in a browser, not by guessing — jsdelivr already being an
+allowed *script* origin didn't cover this *fetch*). The form panel has icon-prefixed email/password
+fields, a show/hide password toggle (`public/assets/js/auth.js`, swaps between two stacked
+`icon('eye')`/`icon('eye-off')` SVGs rather than rewriting markup), a disabled Google SSO button
+(no OAuth wired up — `disabled` + a `title` explaining why, same "honest placeholder" convention as
+the hotel hub's Inventory/Settings tabs), and a static (non-link) "Forgot password?" — Hotezo has
+no self-serve reset flow, accounts are admin-provisioned, so it isn't styled or marked up as
+clickable. `logout()` redirects to `route('login')`, confirmed with a live cookie-jar request
+(clean single 302, `Location: /login`) and an end-to-end Playwright pass — there is no code path
+that sends a signed-out user to the public landing page instead. Behavior:
 
 - **Bcrypt** password verification against `users.password_hash`.
 - Blocks login for `status != 'active'` or `is_deleted = 1` accounts, with the *same* generic
@@ -716,6 +729,14 @@ landing page's CSS. Every scroll-triggered reveal (GSAP + ScrollTrigger, loaded 
 it) and the stats band's count-up fall back to showing the final state immediately under
 `prefers-reduced-motion` — same convention as `animations.js`'s existing count-ups.
 
+The hero's dashboard mockup (`.mockup-card`, all `aria-hidden="true"` decorative markup — it's a
+static preview, not a real dashboard) got a second pass to read as more "alive": a toolbar row (a
+gradient "+ New Booking" pill plus two icon-only buttons, one carrying a small red notification
+dot), a pulsing "Live" badge in the header, and a 3-row recent-activity list under the chart. All
+of it joins the same orchestrated GSAP entrance in `initHeroMockup()` (`public/assets/js/landing.js`)
+— toolbar staggers in first, then the KPI tiles, then the chart, then the activity rows — rather
+than firing simultaneously with the rest of the page-load batch.
+
 ### Two routing decisions forced by the existing app
 
 - **The public hotel directory lives at `/explore`, not `/hotels`.** That path is already the
@@ -814,10 +835,14 @@ Zero console errors, zero CSP violations throughout.
   assets that never reach PHP) carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
   `Referrer-Policy: strict-origin-when-cross-origin`, a locked-down `Permissions-Policy`, and a
   real `Content-Security-Policy` (`App\Core\Csp`) — `script-src` allows only `'self'`, the exact
-  two CDN hosts the layouts load from (cdnjs, jsdelivr), and a per-request nonce
-  (`csp_nonce()` / `App\Core\Csp::nonce()`) for the one inline script that must run before first
-  paint (the theme-flash-prevention snippet in `partials/head-meta.php`) — no
-  `'unsafe-inline'`/`'unsafe-eval'` for scripts. `style-src` keeps `'unsafe-inline'` since the
+  CDN hosts the layouts load from (cdnjs, jsdelivr, and unpkg for the login page's `dotlottie-wc`
+  web component), `'wasm-unsafe-eval'` (scoped to WebAssembly compilation only, for that same
+  Lottie renderer — not general `eval()`), and a per-request nonce (`csp_nonce()` /
+  `App\Core\Csp::nonce()`) for the one inline script that must run before first paint (the
+  theme-flash-prevention snippet in `partials/head-meta.php`) — no `'unsafe-inline'` for scripts.
+  `connect-src` similarly allows only `'self'` plus the three hosts the Lottie web component
+  actually fetches from (unpkg, lottie.host, and jsdelivr for its WASM binary). `style-src` keeps
+  `'unsafe-inline'` since the
   views use inline `style=""` attributes throughout; that's a far smaller risk surface than
   inline script execution. If a future page needs an inline `<script>`, give it
   `nonce="<?= e(csp_nonce()) ?>"` rather than loosening the policy.

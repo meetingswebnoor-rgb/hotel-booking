@@ -27,8 +27,16 @@ final class Csp
     /**
      * Builds the Content-Security-Policy header value. Script origins
      * are the exact CDNs the layouts load (cdnjs for GSAP/ScrollTrigger,
-     * jsdelivr for Alpine/Chart.js) plus 'self' and this request's
-     * nonce — no 'unsafe-inline'/'unsafe-eval' for scripts. Style-src
+     * jsdelivr for Alpine/Chart.js, unpkg for the login page's
+     * dotlottie-wc web component) plus 'self' and this request's
+     * nonce — no 'unsafe-inline' for scripts. 'wasm-unsafe-eval' is
+     * scoped narrowly to WebAssembly compilation (dotlottie's renderer
+     * is WASM-based) without granting general eval(). connect-src adds
+     * lottie.host (the animation JSON) and cdn.jsdelivr.net — dotlottie-wc
+     * pulls its actual WASM binary from jsdelivr at runtime regardless of
+     * which CDN served the JS module itself, confirmed via a real
+     * browser's securitypolicyviolation events rather than guessed.
+     * Style-src
      * keeps 'unsafe-inline' since the views use inline style="" widely;
      * that's a far smaller risk surface than inline script execution.
      */
@@ -38,11 +46,12 @@ final class Csp
 
         $directives = [
             "default-src 'self'",
-            "script-src 'self' 'nonce-{$nonce}' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net",
+            "script-src 'self' 'nonce-{$nonce}' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://unpkg.com",
             "style-src 'self' 'unsafe-inline' https://api.fontshare.com https://fonts.googleapis.com",
             "font-src 'self' data: https://fonts.gstatic.com https://api.fontshare.com https://cdn.fontshare.com",
             "img-src 'self' data: blob:",
-            "connect-src 'self'",
+            "connect-src 'self' https://unpkg.com https://lottie.host https://cdn.jsdelivr.net",
+            "worker-src 'self' blob:",
             "object-src 'none'",
             "base-uri 'self'",
             "form-action 'self'",

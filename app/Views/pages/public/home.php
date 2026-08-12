@@ -103,6 +103,12 @@ View::section('styles');
         <div class="mockup-card__header">
           <span class="mockup-card__dot"></span><span class="mockup-card__dot"></span><span class="mockup-card__dot"></span>
           <span class="mockup-card__title">Hotezo Dashboard</span>
+          <span class="mockup-card__live"><span class="mockup-card__live-dot"></span>Live</span>
+        </div>
+        <div class="mockup-card__toolbar" data-hero-toolbar>
+          <span class="mockup-card__btn mockup-card__btn--primary"><?= icon('plus', 'icon icon-xs') ?>New Booking</span>
+          <span class="mockup-card__btn mockup-card__btn--icon"><?= icon('calendar', 'icon icon-xs') ?></span>
+          <span class="mockup-card__btn mockup-card__btn--icon mockup-card__btn--bell"><?= icon('bell', 'icon icon-xs') ?></span>
         </div>
         <div class="mockup-card__kpis">
           <div class="mockup-kpi" data-hero-kpi>
@@ -120,6 +126,23 @@ View::section('styles');
         </div>
         <div class="mockup-card__chart">
           <canvas data-mockup-chart></canvas>
+        </div>
+        <div class="mockup-card__activity" data-hero-activity>
+          <div class="mockup-activity-row" data-hero-activity-row>
+            <span class="mockup-activity-row__dot mockup-activity-row__dot--emerald"></span>
+            <span class="mockup-activity-row__text">Room 204 checked in</span>
+            <span class="mockup-activity-row__time">2m</span>
+          </div>
+          <div class="mockup-activity-row" data-hero-activity-row>
+            <span class="mockup-activity-row__dot mockup-activity-row__dot--amber"></span>
+            <span class="mockup-activity-row__text">Booking.com — new reservation</span>
+            <span class="mockup-activity-row__time">6m</span>
+          </div>
+          <div class="mockup-activity-row" data-hero-activity-row>
+            <span class="mockup-activity-row__dot mockup-activity-row__dot--primary"></span>
+            <span class="mockup-activity-row__text">Invoice #HZ-2291 settled</span>
+            <span class="mockup-activity-row__time">14m</span>
+          </div>
         </div>
       </div>
     </div>

@@ -116,11 +116,13 @@ function initHeroMockup() {
   if (!mockup) return;
 
   const kpiEls = mockup.querySelectorAll('[data-hero-kpi]');
+  const toolbarBtns = mockup.querySelectorAll('[data-hero-toolbar] .mockup-card__btn');
+  const activityRows = mockup.querySelectorAll('[data-hero-activity-row]');
 
   if (reduceMotion || typeof gsap === 'undefined') {
     mockup.style.opacity = '1';
     mockup.style.transform = 'none';
-    kpiEls.forEach((el) => {
+    [...kpiEls, ...toolbarBtns, ...activityRows].forEach((el) => {
       el.style.opacity = '1';
       el.style.transform = 'none';
     });
@@ -130,14 +132,18 @@ function initHeroMockup() {
   }
 
   gsap.set(mockup, { opacity: 0, x: 40 });
+  gsap.set(toolbarBtns, { opacity: 0, y: 10 });
   gsap.set(kpiEls, { opacity: 0, y: 14 });
+  gsap.set(activityRows, { opacity: 0, x: -10 });
 
   gsap
     .timeline({ delay: 0.3 })
     .to(mockup, { opacity: 1, x: 0, duration: 0.6, ease: 'power3.out' })
-    .to(kpiEls, { opacity: 1, y: 0, duration: 0.45, ease: 'power3.out', stagger: 0.12 }, '-=0.25')
+    .to(toolbarBtns, { opacity: 1, y: 0, duration: 0.4, ease: 'power3.out', stagger: 0.08 }, '-=0.3')
+    .to(kpiEls, { opacity: 1, y: 0, duration: 0.45, ease: 'power3.out', stagger: 0.12 }, '-=0.2')
     .add(() => runKpiCountUps(kpiEls), '-=0.15')
-    .add(() => createHeroChart(), '-=0.4');
+    .add(() => createHeroChart(), '-=0.4')
+    .to(activityRows, { opacity: 1, x: 0, duration: 0.4, ease: 'power3.out', stagger: 0.1 }, '-=0.2');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
