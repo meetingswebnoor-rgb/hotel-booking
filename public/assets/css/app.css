@@ -914,3 +914,118 @@
   border-radius: var(--radius-sm);
   background: var(--gradient-primary);
 }
+
+/* ------------------------- Rooms & Rate Plans (standalone) ----------------------- */
+.view-toggle {
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  width: fit-content;
+}
+
+.view-toggle__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-med);
+  transition: color var(--dur-fast), background var(--dur-fast);
+}
+
+.view-toggle__btn.active {
+  background: var(--gradient-primary);
+  color: #fff;
+}
+
+.room-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-6);
+}
+
+.room-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.room-card__image {
+  position: relative;
+  height: 140px;
+  background: var(--gradient-primary-soft);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: var(--space-3);
+}
+
+.room-card__placeholder-icon {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 36px;
+  height: 36px;
+  color: var(--text-low);
+}
+
+.room-card__status {
+  position: relative;
+}
+
+.room-card__body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.room-card__number {
+  font-size: 1.1rem;
+}
+
+.room-card__hotel,
+.room-card__capacity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.8125rem;
+  color: var(--text-med);
+}
+
+.room-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--border);
+}
+
+.price-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius-full);
+  background: var(--gradient-primary-soft);
+  color: var(--color-primary-2);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+
+.price-badge small {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 0.6875rem;
+  color: var(--text-low);
+}

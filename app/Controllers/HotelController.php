@@ -13,9 +13,9 @@ use App\Core\Response;
 use App\Core\Session;
 use App\Core\Validator;
 use App\Models\Hotel;
-use App\Models\RatePlan;
-use App\Models\Room;
 use App\Services\HotelService;
+use App\Services\RatePlanService;
+use App\Services\RoomService;
 
 /**
  * The hotel list (glass cards) and the per-hotel management hub — a
@@ -39,9 +39,6 @@ final class HotelController
         'inactive' => 'Inactive',
         'pending_approval' => 'Pending Approval',
     ];
-    private const ROOM_TYPES = ['Single', 'Double', 'Suite', 'Deluxe'];
-    private const ROOM_STATUSES = ['Available', 'Occupied', 'Maintenance'];
-    private const SEASONS = ['Peak', 'Off-Peak', 'Regular'];
 
     // Mirrors BookingController's option sets — the embedded Bookings
     // tab (see partials/admin/bookings-embed.php) needs the same
@@ -184,9 +181,9 @@ final class HotelController
             'settlementTypes' => self::SETTLEMENT_TYPES,
             'gstTypes' => self::GST_TYPES,
             'statusOptions' => self::STATUS_OPTIONS,
-            'roomTypes' => self::ROOM_TYPES,
-            'roomStatuses' => self::ROOM_STATUSES,
-            'seasons' => self::SEASONS,
+            'roomTypes' => RoomService::ROOM_TYPES,
+            'roomStatuses' => RoomService::STATUSES,
+            'seasons' => RatePlanService::SEASONS,
             'otas' => $canViewBookings ? Database::all('otas', ['is_deleted' => 0, 'status' => 'active'], '*', 'name') : [],
             'bookingStatusOptions' => self::BOOKING_STATUS_OPTIONS,
             'paymentStatusOptions' => self::PAYMENT_STATUS_OPTIONS,
@@ -274,7 +271,7 @@ final class HotelController
             return Response::redirect($redirectBack);
         }
 
-        Room::softDelete($room['id'], Auth::id());
+        RoomService::delete($room['id'], Auth::id());
         Session::flash('success', 'Room removed.');
 
         return Response::redirect($redirectBack);
@@ -321,7 +318,7 @@ final class HotelController
             return Response::redirect($redirectBack);
         }
 
-        RatePlan::softDelete($plan['id'], Auth::id());
+        RatePlanService::delete($plan['id'], Auth::id());
         Session::flash('success', 'Rate plan removed.');
 
         return Response::redirect($redirectBack);
@@ -469,25 +466,7 @@ final class HotelController
             return Response::html(view('errors/403', [], 'public'), 403);
         }
 
-        $rules = [
-            'room_number' => 'required|max:20',
-            'room_type' => 'required|in:' . implode(',', self::ROOM_TYPES),
-            'pax' => 'required|numeric',
-            'max_adults' => 'required|numeric',
-            'max_children' => 'required|numeric',
-            'base_price' => 'required|numeric',
-            'status' => 'required|in:' . implode(',', self::ROOM_STATUSES),
-        ];
-        $errors = Validator::make($request->all(), $rules)->errors();
-
-        $roomNumber = trim((string) $request->input('room_number', ''));
-
-        if ($roomNumber !== '') {
-            $dupe = Database::first('rooms', ['hotel_id' => $hotelId, 'room_number' => $roomNumber, 'is_deleted' => 0]);
-            if ($dupe !== null && ($existing === null || $dupe['id'] !== $existing['id'])) {
-                $errors['room_number'][] = 'A room with this number already exists at this hotel.';
-            }
-        }
+        $errors = RoomService::validate($request->all(), $hotelId, $existing['id'] ?? null);
 
         if ($errors !== []) {
             Session::flash('error', 'Please fix the room details — ' . implode(' ', array_merge(...array_values($errors))));
@@ -495,26 +474,9 @@ final class HotelController
             return Response::redirect($redirectBack);
         }
 
-        $data = [
-            'hotel_id' => $hotelId,
-            'room_number' => sanitize($roomNumber),
-            'room_type' => (string) $request->input('room_type'),
-            'pax' => (int) $request->input('pax'),
-            'max_adults' => (int) $request->input('max_adults'),
-            'max_children' => (int) $request->input('max_children'),
-            'base_price' => (float) $request->input('base_price'),
-            'status' => (string) $request->input('status'),
-        ];
-
-        if ($existing === null) {
-            $data['owner_role'] = Auth::roleName();
-            $data['visibility_scope'] = 'hotel';
-            Room::create($data);
-            Session::flash('success', 'Room added.');
-        } else {
-            Room::updateRecord($existing['id'], $data);
-            Session::flash('success', 'Room updated.');
-        }
+        $imagePath = FileUpload::storeImage($request->file('room_image'), 'hotels/' . $hotelId . '/rooms');
+        RoomService::save($request->all(), $hotelId, $existing, $imagePath, Auth::roleName());
+        Session::flash('success', $existing === null ? 'Room added.' : 'Room updated.');
 
         return Response::redirect($redirectBack);
     }
@@ -536,14 +498,7 @@ final class HotelController
             return Response::html(view('errors/403', [], 'public'), 403);
         }
 
-        $rules = [
-            'plan_name' => 'required|max:150',
-            'room_type' => 'required|in:' . implode(',', self::ROOM_TYPES),
-            'occupancy_type' => 'max:50',
-            'season' => 'required|in:' . implode(',', self::SEASONS),
-            'base_price' => 'required|numeric',
-        ];
-        $errors = Validator::make($request->all(), $rules)->errors();
+        $errors = RatePlanService::validate($request->all());
 
         if ($errors !== []) {
             Session::flash('error', 'Please fix the rate plan details — ' . implode(' ', array_merge(...array_values($errors))));
@@ -551,24 +506,8 @@ final class HotelController
             return Response::redirect($redirectBack);
         }
 
-        $data = [
-            'hotel_id' => $hotelId,
-            'plan_name' => sanitize((string) $request->input('plan_name')),
-            'room_type' => (string) $request->input('room_type'),
-            'occupancy_type' => $this->nullableInput($request, 'occupancy_type'),
-            'season' => (string) $request->input('season'),
-            'base_price' => (float) $request->input('base_price'),
-        ];
-
-        if ($existing === null) {
-            $data['owner_role'] = Auth::roleName();
-            $data['visibility_scope'] = 'hotel';
-            RatePlan::create($data);
-            Session::flash('success', 'Rate plan added.');
-        } else {
-            RatePlan::updateRecord($existing['id'], $data);
-            Session::flash('success', 'Rate plan updated.');
-        }
+        RatePlanService::save($request->all(), $hotelId, $existing, Auth::roleName());
+        Session::flash('success', $existing === null ? 'Rate plan added.' : 'Rate plan updated.');
 
         return Response::redirect($redirectBack);
     }

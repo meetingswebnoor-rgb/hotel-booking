@@ -15,9 +15,13 @@ lightweight MVC core, the design system, a styled placeholder landing page), the
 MySQL/MariaDB schema** (27 tables, migrations, and seed data), the **auth + authorization system**
 (login, sessions, role levels, hotel scoping, per-user permission overrides), the **authenticated
 app shell** (sidebar, topbar, mobile nav, confirm dialogs), the **analytics dashboard** (KPIs,
-charts, drill-down, live polling), and the **booking entry form** (create/edit, live GST/
-commission calculation, capacity warnings, a printable voucher). Feature modules (hotel/room/rate-
-plan management, invoicing, settlements) land on top of this in later steps.
+charts, drill-down, live polling), the **booking entry form and list** (create/edit, live GST/
+commission calculation, capacity warnings, a printable voucher, a filterable paginated list with a
+financial-breakdown drawer), the **hotel management hub** (property grid, a 9-tab hub per hotel,
+cascading soft delete), **standalone Rooms and Rate Plans pages** (cross-hotel browsing/management
+sharing their validation and save logic with the hub's tabs), and a **security-hardening +
+Hostinger-deployment-readiness pass** (CSP, forced HTTPS, hardened sessions, response headers). User
+management, the inventory calendar, invoicing, and settlements land on top of this in later steps.
 
 ## Tech stack
 
@@ -32,28 +36,37 @@ plan management, invoicing, settlements) land on top of this in later steps.
 
 ```
 public/            The only web-accessible folder (docroot). index.php is the front controller.
-  assets/js/         app.js, api.js, ui.js, confirm.js, dashboard.js, booking-form.js,
-                     booking-list.js, format.js, animations.js, charts.js — ES modules, no build step.
+  assets/js/         app.js, api.js, ui.js, confirm.js, format.js, animations.js, charts.js,
+                     dashboard.js, booking-form.js, booking-list.js, hotel-hub.js, rooms.js,
+                     voucher-print.js — ES modules, no build step.
   assets/css/        design-system.css, components.css, app.css (loaded everywhere), print.css
                      (loaded only by the print layout).
+  assets/uploads/    Hotel/room photos (App\Core\FileUpload) — script execution disabled via
+                     its own .htaccess; gitignored except .gitkeep/.htaccess.
 app/
-  Core/            Router, Database (PDO), Request, Response, View, Session, Csrf, Auth,
-                   Permission, RoleLevel, Icons, Validator, Mailer, Model, Migration, Migrator,
-                   Seeder, App (service + current-request registry).
+  Core/            Router, Database (PDO), Request, Response, View, Session, Csrf, Csp, Auth,
+                   Permission, RoleLevel, Icons, Validator, Mailer, FileUpload, Model, Migration,
+                   Migrator, Seeder, Env, App (service + current-request registry).
   Controllers/      AuthController, BookingController, DashboardController, HomeController,
-                    HotelFilterController, NotificationController, SearchController.
-  Models/           Booking, plus per-table models extending Core/Model as writes land.
-  Services/         BookingCalculator (the authoritative money math), plus InvoiceService,
-                    CommissionService, ... as those modules land.
+                    HotelController, HotelFilterController, NotificationController,
+                    RatePlanController, RoomController, SearchController.
+  Models/           Booking, Hotel, Room, RatePlan, plus per-table models extending Core/Model
+                    as writes land.
+  Services/         BookingCalculator (the authoritative money math), HotelService (cascading
+                    soft delete), RoomService, RatePlanService (shared validate/save/delete logic
+                    behind both the standalone pages and the hotel hub's tabs).
   Middleware/        AuthMiddleware, RoleMiddleware(minLevel), HotelScopeMiddleware.
   Views/
     layouts/           public.php, admin.php (the app shell), auth.php, print.php (voucher).
     partials/          sidebar, topbar, bottom-tab-bar, confirm-dialog, toasts, breadcrumbs,
                        empty-state, skeleton, nav-public, footer-public, head-meta,
-                       admin/ (chart-body, chart-restricted, booking-room-line, booking-calc-summary).
-    pages/             public/, auth/, admin/ (dashboard, bookings/), errors/.
+                       admin/ (chart-body, chart-restricted, booking-room-line,
+                       booking-calc-summary, hotel-form-fields, room-modal, rate-plan-modal,
+                       bookings-embed, coming-soon).
+    pages/             public/, auth/, admin/ (dashboard, bookings/, hotels/, rooms/, rate-plans/),
+                       errors/.
   Helpers/           Global helper functions (money, gst, fy_label, sanitize, icon, can,
-                     role_at_least, old, old_array, form_errors, ...).
+                     role_at_least, csp_nonce, old, old_array, form_errors, ...).
 config/             app.php, database.php, mail.php, auth.php, permissions.php (role -> module ->
                     action matrix — the only config file NOT read from .env).
 database/
@@ -583,6 +596,67 @@ plans — each `WHERE hotel_id = ? AND is_deleted = 0`, so already-deleted rows 
 `deleted_at`/`deleted_by` instead of being overwritten. It's a new, from-scratch pattern (no prior
 cascade delete existed anywhere in the codebase to mirror) and it's the first `Service` whose job
 is orchestration rather than money math.
+
+## Rooms & Rate Plans (standalone)
+
+`GET /rooms` and `GET /rate-plans` — cross-hotel versions of the hotel hub's Rooms/Rate Plans
+tabs, for browsing and managing rooms or pricing across every hotel a user can access instead of
+one at a time. Server-rendered like the Hotels list (room/rate-plan counts stay small even across
+a large portfolio), not the AJAX/JSON/pagination treatment Bookings gets.
+
+### Same logic, two entry points
+
+`App\Services\RoomService` and `App\Services\RatePlanService` are the one place validation and
+save/delete logic live — `App\Controllers\HotelController`'s hub-tab actions
+(`storeRoom`/`updateRoom`/`destroyRoom` and the rate-plan equivalents) and the new
+`App\Controllers\RoomController` / `App\Controllers\RatePlanController` both call straight into
+them, so a room created from `/rooms` and one created from a hotel's Rooms tab are validated and
+persisted identically — there's exactly one implementation of "is this room number already taken
+at this hotel?", not two that could drift.
+
+### Rooms: grid + table, rich cards
+
+Both views render from the same server-side data (`public/assets/js/rooms.js` just shows one panel
+at a time, choice remembered in `localStorage`) — no extra fetch on toggle. Cards show the room's
+photo (or a placeholder icon), a color-coded status badge (green Available, amber Maintenance,
+neutral Occupied), capacity, and a price badge. Rooms gained an actual image upload
+(`App\Core\FileUpload`, same validated-content/fresh-UUID-name pattern as hotel photos) in this
+pass — the `rooms.images` JSON column existed in the schema from the start but nothing wrote to it
+until now; it stays an array for forward compatibility with a real gallery later even though today
+a fresh upload just replaces whatever was there, mirroring hotels' `hero_image`.
+
+### The cross-hotel Add modal
+
+A hotel's Rooms/Rate Plans tab always knows which hotel it's adding to (the URL). The standalone
+page doesn't, so its Add modal gets an extra Hotel `<select>` (`partials/admin/room-modal.php` /
+`rate-plan-modal.php` render it only when a `$hotels` list is passed in, which the hub's tabs never
+do) — auto-selected when the page's hotel filter is already narrowed to one, or when the caller
+only has exactly one hotel they're allowed to add to either way (a `hotel_manager` scoped to a
+single property never has to touch the dropdown). Editing never shows this field — like the
+booking form's Property field, a room's or rate plan's hotel is fixed once it exists. Every
+add/edit/delete form round-trips a hidden `_redirect_hotel_id` so the page's current filter
+survives the save.
+
+### Scoping and a permission-level fix found along the way
+
+Both pages use the same effective-scope pattern as Bookings/Dashboard: `HotelScopeMiddleware`'s
+scope narrowed (never widened) by the page's own `?hotel_id=` filter. A submitted `hotel_id` is
+always re-validated server-side against `can('rooms'|'rate_plans', 'create', $hotelId)` regardless
+of what the form showed — confirmed with a tampered cross-hotel request that correctly 403s.
+
+Building this surfaced a real gap in the existing hotel-hub rate-plan routes: `config/permissions.php`
+grants `revenue_manager` (level 2) `rate_plans.edit`, but the nested routes' `RoleMiddleware` gate
+was set to `RoleLevel::HOTEL_MANAGER` (level 3) for store *and* update, which silently blocked
+`revenue_manager` before `can()` ever got a say. Fixed for both the nested and new standalone
+routes: store/update now gate at `RoleLevel::MANAGER`, leaving the fine-grained `can()` check (which
+still correctly rejects `revenue_manager` on *create*, just not *edit*) to do the real enforcement —
+destroy stays at `HOTEL_MANAGER` since no lower role has delete. Verified against the real app:
+`revenue_manager` can now open and save a rate-plan edit that used to 403 at the route layer.
+
+### Sidebar
+
+Rooms (`layers` icon) and Rate Plans (`tag` icon) were added to `partials/sidebar.php`, gated by
+`can('rooms', 'view')` / `can('rate_plans', 'view')` — same convention as every other item.
 
 ## Conventions
 

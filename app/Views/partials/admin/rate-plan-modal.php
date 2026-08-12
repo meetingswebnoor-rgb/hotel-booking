@@ -7,7 +7,11 @@
  * @var array<int, string> $roomTypes
  * @var array<int, string> $seasons
  * @var string $heading
+ * @var array<int, array<string, mixed>>|null $hotels present only for the standalone Rate Plans page's Add-Plan modal (cross-hotel picker); the hub's per-hotel tab never passes it, and edit modals never show it — a plan's hotel is fixed once it exists.
+ * @var string|null $redirectHotelId the standalone page's current ?hotel_id= filter, round-tripped via a hidden field so save/delete lands back on the same filtered view
  */
+$hotels ??= null;
+$redirectHotelId ??= null;
 ?>
 <div class="modal-backdrop" id="<?= e($modalId) ?>" hidden>
   <div class="modal glass">
@@ -17,6 +21,22 @@
     </div>
     <form method="POST" action="<?= e($formAction) ?>">
       <?= csrf_field() ?>
+      <?php if ($redirectHotelId !== null): ?>
+        <input type="hidden" name="_redirect_hotel_id" value="<?= e($redirectHotelId) ?>">
+      <?php endif; ?>
+
+      <?php if ($plan === null && $hotels !== null): ?>
+        <div class="field mb-4">
+          <label for="<?= e($modalId) ?>-hotel">Hotel</label>
+          <select class="select" id="<?= e($modalId) ?>-hotel" name="hotel_id" required>
+            <option value="">Select a hotel…</option>
+            <?php foreach ($hotels as $h): ?>
+              <option value="<?= e($h['id']) ?>" <?= ($redirectHotelId === $h['id'] || count($hotels) === 1) ? 'selected' : '' ?>><?= e($h['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      <?php endif; ?>
+
       <div class="field mb-4">
         <label for="<?= e($modalId) ?>-plan-name">Plan Name</label>
         <input class="input" type="text" id="<?= e($modalId) ?>-plan-name" name="plan_name" value="<?= e((string) ($plan['plan_name'] ?? '')) ?>" required autofocus>

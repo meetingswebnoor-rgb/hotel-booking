@@ -16,6 +16,8 @@ $navItems = [
     ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid', 'href' => route('dashboard'), 'visible' => true],
     ['key' => 'bookings', 'label' => 'Bookings', 'icon' => 'calendar', 'href' => can('bookings', 'view') ? route('bookings.index') : null, 'visible' => can('bookings', 'view')],
     ['key' => 'hotels', 'label' => 'Hotels', 'icon' => 'home', 'href' => can('hotels', 'view') ? route('hotels.index') : null, 'visible' => can('hotels', 'view')],
+    ['key' => 'rooms', 'label' => 'Rooms', 'icon' => 'layers', 'href' => can('rooms', 'view') ? route('rooms.index') : null, 'visible' => can('rooms', 'view')],
+    ['key' => 'rate-plans', 'label' => 'Rate Plans', 'icon' => 'tag', 'href' => can('rate_plans', 'view') ? route('rate-plans.index') : null, 'visible' => can('rate_plans', 'view')],
     ['key' => 'otas', 'label' => 'OTAs', 'icon' => 'share', 'visible' => can('otas', 'view')],
     ['key' => 'invoices', 'label' => 'Invoices', 'icon' => 'file-text', 'visible' => can('invoices', 'view')],
     ['key' => 'reports', 'label' => 'Reports', 'icon' => 'bar-chart', 'visible' => can('reports', 'view')],

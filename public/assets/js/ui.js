@@ -312,3 +312,17 @@ export function initNotifications() {
     }
   });
 }
+
+/**
+ * Generic auto-submit for server-rendered filter bars (Rooms, Rate
+ * Plans — pages small enough not to need the Bookings list's AJAX/JSON
+ * treatment): any select/input marked data-auto-submit submits its
+ * enclosing form on change, so picking a filter reloads the page with
+ * the new query string immediately, no explicit "Apply" button needed.
+ */
+export function initFilterAutoSubmit() {
+  document.addEventListener('change', (event) => {
+    const field = event.target.closest('[data-auto-submit]');
+    if (field) field.closest('form')?.submit();
+  });
+}

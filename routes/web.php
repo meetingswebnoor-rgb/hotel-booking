@@ -9,6 +9,8 @@ use App\Controllers\HomeController;
 use App\Controllers\HotelController;
 use App\Controllers\HotelFilterController;
 use App\Controllers\NotificationController;
+use App\Controllers\RatePlanController;
+use App\Controllers\RoomController;
 use App\Controllers\SearchController;
 use App\Core\RoleLevel;
 use App\Core\Router;
@@ -66,9 +68,33 @@ return function (Router $router): void {
         $router->post('/{id}/rooms/{roomId}', [HotelController::class, 'updateRoom'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rooms.update');
         $router->post('/{id}/rooms/{roomId}/delete', [HotelController::class, 'destroyRoom'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rooms.destroy');
 
-        $router->post('/{id}/rate-plans', [HotelController::class, 'storeRatePlan'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rate-plans.store');
-        $router->post('/{id}/rate-plans/{planId}', [HotelController::class, 'updateRatePlan'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rate-plans.update');
+        // MANAGER (not HOTEL_MANAGER) on store/update — config/permissions.php
+        // grants revenue_manager (level 2) rate_plans.edit, so the route-level
+        // gate must not block them before can() ever gets a say. No role
+        // below hotel_manager has rate_plans.delete, so destroy stays higher.
+        $router->post('/{id}/rate-plans', [HotelController::class, 'storeRatePlan'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'hotels.rate-plans.store');
+        $router->post('/{id}/rate-plans/{planId}', [HotelController::class, 'updateRatePlan'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'hotels.rate-plans.update');
         $router->post('/{id}/rate-plans/{planId}/delete', [HotelController::class, 'destroyRatePlan'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'hotels.rate-plans.destroy');
+    });
+
+    // Standalone, cross-hotel Rooms and Rate Plans pages — same
+    // App\Services\RoomService / RatePlanService (and so identical
+    // validation/behavior) as the hotel hub's tabs above, just not
+    // scoped to one hotel at a time. No dynamic GET /{id} route exists
+    // for either (edit happens via modal, not a page), so there's no
+    // static-vs-dynamic ordering concern like /hotels has.
+    $router->group(['prefix' => '/rooms', 'middleware' => [AuthMiddleware::class, HotelScopeMiddleware::class]], function (Router $router): void {
+        $router->get('/', [RoomController::class, 'index'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'rooms.index');
+        $router->post('/', [RoomController::class, 'store'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'rooms.store');
+        $router->post('/{id}', [RoomController::class, 'update'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'rooms.update');
+        $router->post('/{id}/delete', [RoomController::class, 'destroy'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'rooms.destroy');
+    });
+
+    $router->group(['prefix' => '/rate-plans', 'middleware' => [AuthMiddleware::class, HotelScopeMiddleware::class]], function (Router $router): void {
+        $router->get('/', [RatePlanController::class, 'index'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'rate-plans.index');
+        $router->post('/', [RatePlanController::class, 'store'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'rate-plans.store');
+        $router->post('/{id}', [RatePlanController::class, 'update'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'rate-plans.update');
+        $router->post('/{id}/delete', [RatePlanController::class, 'destroy'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'rate-plans.destroy');
     });
 
     // App shell endpoints — used by every admin page's topbar/sidebar.

@@ -12,7 +12,12 @@
  * @var array<int, string> $roomTypes
  * @var array<int, string> $roomStatuses
  * @var string $heading
+ * @var array<int, array<string, mixed>>|null $hotels present only for the standalone Rooms page's Add-Room modal (cross-hotel picker); the hub's per-hotel tab never passes it, and edit modals never show it — a room's hotel is fixed once it exists.
+ * @var string|null $redirectHotelId the standalone page's current ?hotel_id= filter, round-tripped via a hidden field so save/delete lands back on the same filtered view
  */
+$hotels ??= null;
+$redirectHotelId ??= null;
+$existingImages = $room !== null && !empty($room['images']) ? (json_decode((string) $room['images'], true) ?: []) : [];
 ?>
 <div class="modal-backdrop" id="<?= e($modalId) ?>" hidden>
   <div class="modal glass">
@@ -20,8 +25,24 @@
       <h3><?= e($heading) ?></h3>
       <button type="button" class="modal__close" data-modal-close aria-label="Close"><?= icon('x', 'icon') ?></button>
     </div>
-    <form method="POST" action="<?= e($formAction) ?>">
+    <form method="POST" action="<?= e($formAction) ?>" enctype="multipart/form-data">
       <?= csrf_field() ?>
+      <?php if ($redirectHotelId !== null): ?>
+        <input type="hidden" name="_redirect_hotel_id" value="<?= e($redirectHotelId) ?>">
+      <?php endif; ?>
+
+      <?php if ($room === null && $hotels !== null): ?>
+        <div class="field mb-4">
+          <label for="<?= e($modalId) ?>-hotel">Hotel</label>
+          <select class="select" id="<?= e($modalId) ?>-hotel" name="hotel_id" required>
+            <option value="">Select a hotel…</option>
+            <?php foreach ($hotels as $h): ?>
+              <option value="<?= e($h['id']) ?>" <?= ($redirectHotelId === $h['id'] || count($hotels) === 1) ? 'selected' : '' ?>><?= e($h['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      <?php endif; ?>
+
       <div class="field mb-4">
         <label for="<?= e($modalId) ?>-room-number">Room Number</label>
         <input class="input" type="text" id="<?= e($modalId) ?>-room-number" name="room_number" value="<?= e((string) ($room['room_number'] ?? '')) ?>" required autofocus>
@@ -61,6 +82,14 @@
       <div class="field mb-4">
         <label for="<?= e($modalId) ?>-base-price">Base Price (₹ / night)</label>
         <input class="input" type="number" min="0" step="0.01" id="<?= e($modalId) ?>-base-price" name="base_price" value="<?= e((string) ($room['base_price'] ?? '')) ?>" required>
+      </div>
+      <div class="field mb-4">
+        <label for="<?= e($modalId) ?>-image">Room Image <span class="text-low">(optional)</span></label>
+        <?php if ($existingImages !== []): ?>
+          <img class="hotel-photo-preview" src="<?= e(asset($existingImages[0])) ?>" alt="Current room image">
+        <?php endif; ?>
+        <input class="input" type="file" id="<?= e($modalId) ?>-image" name="room_image" accept="image/jpeg,image/png,image/webp">
+        <span class="text-low" style="font-size: 0.8125rem;">JPEG, PNG, or WebP — up to 5MB.</span>
       </div>
       <div class="modal__actions">
         <button type="button" class="btn btn-ghost" data-modal-close>Cancel</button>
