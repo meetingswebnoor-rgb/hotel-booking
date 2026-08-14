@@ -908,12 +908,23 @@ handling; the front controller is `public/index.php`). `APP_ENV=local` in `.env`
 1. **Upload the code.** Prefer deploying via Git (Hostinger's hPanel supports connecting a GitHub
    repo directly, or `git clone`/`git pull` over SSH on Business/Cloud/VPS plans) over a manual
    zip/FTP upload, so `git pull` is how updates ship later too.
-2. **Set the domain's document root to `public/`**, not the repo root — in hPanel this is under
+2. **Set the domain's document root to `public/`** if the host lets you — in hPanel this is under
    the domain/subdomain's settings ("Document Root" / "Change PHP Version & Settings" area for the
-   site). This is the single most important step; skipping it exposes the entire repo (migrations,
-   `.env.example`, source) at the domain root instead of running the app. (The new root-level
-   `.htaccess` denies access outright if this step is missed, but the app also simply won't work —
-   there's no substitute for setting it correctly.)
+   site). This is the layout to prefer: application code then sits physically outside the served
+   tree, which no amount of rewriting can fully substitute for.
+
+   Plenty of shared hosts pin a site to a fixed `public_html` and won't let you point it deeper —
+   Hostinger addon domains among them. That case is handled: the root-level `.htaccess` denies the
+   application internals (`app/`, `config/`, `routes/`, `database/`, `cron/`, `.env`, `cli`,
+   `composer.*`, `README.md`) outright and rewrites everything else into `public/`, so deploying
+   the repo root straight into `public_html` works and does not expose source. Requests that
+   address `public/` by its real path (`/public/index.php`) are refused, so the app is reachable by
+   exactly one set of URLs either way.
+
+   Note that `public/.htaccess` carries a copy of that `/public/...` guard on purpose:
+   mod_rewrite does not inherit a parent directory's rules into a directory that defines its own,
+   so once a request resolves into `public/` it is that copy which actually runs. Deleting it
+   because it "looks redundant" would reopen the direct-path route.
 3. **Select PHP 8.2+** for the site (hPanel -> PHP Configuration).
 4. **Install dependencies.** If the plan includes SSH access, `composer install --no-dev
    --optimize-autoloader` from the repo root. Without SSH, `App\Core\Mailer` won't work until

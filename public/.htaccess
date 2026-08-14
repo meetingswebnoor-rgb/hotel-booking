@@ -3,6 +3,20 @@ Options -MultiViews
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
+
+    # Refuse requests that address this directory by its real path
+    # (/public/assets/..., /public/index.php), which only happens when
+    # the document root is the repo root rather than this directory.
+    # Legitimate traffic arrives by internal rewrite from the parent
+    # .htaccess, and %{THE_REQUEST} — the verbatim request line — is
+    # not touched by that, so it still shows the original URL.
+    #
+    # The parent has the same guard, but mod_rewrite does not inherit a
+    # parent's rules into a directory that defines its own, so for
+    # anything under public/ this copy is the one that actually runs.
+    RewriteCond %{THE_REQUEST} \s[^?\s]*/public/ [NC]
+    RewriteRule ^ - [F,L]
+
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^ index.php [QSA,L]

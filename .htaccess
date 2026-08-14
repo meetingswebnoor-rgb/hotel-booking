@@ -1,16 +1,62 @@
-# This repo's document root must be public/ (see README's Setup and
-# Deployment sections) — public/index.php is the only front controller
-# and public/.htaccess carries the rewrite rules + security headers.
+# Front door for the case where the document root is this directory
+# (the repo root) instead of public/ — which is what shared hosts that
+# pin the site to a fixed public_html give you, Hostinger included.
 #
-# This file is defense-in-depth for the case where a host (or a local
-# Apache vhost) ever gets pointed at this directory itself instead:
-# deny everything rather than risk directory listings, source files,
-# migrations revealing schema, or .env being served.
+# The layout in the README is still the one to prefer: document root =
+# public/, so application code sits physically outside the served tree
+# and no rewrite mistake can expose it. This file is for when that
+# isn't available. It used to be a blanket "Require all denied", which
+# is safe but turns the entire site into a 403 — so instead: deny the
+# paths that must never be served, then hand everything else to
+# public/index.php.
 
-<IfModule mod_authz_core.c>
-    Require all denied
+Options -Indexes
+Options -MultiViews
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # 1. Application internals: never web-servable, whatever the URL.
+    #    Listed explicitly rather than as "deny unless public/" so a new
+    #    top-level file can't silently become world-readable.
+    RewriteRule ^(?:app|config|routes|database|cron|vendor|node_modules|tests|storage|\.git|\.github|\.claude)(?:/|$) - [F,L]
+    RewriteRule ^(?:\.env.*|\.gitignore|\.htaccess|composer\.(?:json|lock)|package(?:-lock)?\.json|README\.md|cli)$ - [F,L]
+
+    # 2. public/ is reachable only through the rewrite below, never by
+    #    its real path (/public/index.php, /public/assets/...).
+    #    %{THE_REQUEST} is the verbatim request line, so it sees what
+    #    the client actually asked for and stays blind to the internal
+    #    rewrite in 3.
+    #
+    #    This copy is a fallback only: mod_rewrite does not inherit a
+    #    parent's rules into a directory that defines its own, so once
+    #    a request resolves into public/ it is public/.htaccess whose
+    #    identical guard fires. Keep both — this one is what still
+    #    denies /public/... if that file is ever lost.
+    RewriteCond %{THE_REQUEST} \s[^?\s]*/public/ [NC]
+    RewriteRule ^ - [F,L]
+
+    # 3. Everything else moves into public/ untouched, and public/.htaccess
+    #    takes it from there: real files (CSS/JS/uploads) get served,
+    #    the rest falls through to index.php. Deliberately no -f test
+    #    here — that would need an absolute path, and %{DOCUMENT_ROOT}
+    #    is only the repo root in the document-root case, so it would
+    #    silently stop matching in a subdirectory install.
+    #
+    #    The (?!public/) guard is what ends the rewrite loop: on the
+    #    second pass the path already starts with public/, so this rule
+    #    no longer matches and Apache moves on to serving the file.
+    RewriteRule ^(?!public/)(.*)$ public/$1 [L]
 </IfModule>
-<IfModule !mod_authz_core.c>
-    Order allow,deny
-    Deny from all
+
+# No mod_rewrite means no way to route into public/, and serving the
+# repo as plain files is worse than serving nothing. Fail closed.
+<IfModule !mod_rewrite.c>
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
 </IfModule>
