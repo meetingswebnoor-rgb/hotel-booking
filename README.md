@@ -956,30 +956,44 @@ handling; the front controller is `public/index.php`). `APP_ENV=local` in `.env`
 9. **Confirm `public/assets/uploads/` is writable** by the PHP process (hotel hero/gallery images
    go there via `App\Core\FileUpload`) — typically already correct on shared hosting, but check
    permissions if uploads start failing silently.
-10. **Treat a deploy as unverified until you have smoke-tested it — it lands intermittently.**
-    Hostinger's deploy-from-archive API (`hosting_deployStaticWebsite`, which works fine for PHP
-    despite the name) wipes the document root and extracts into it, and returns
-    `Request accepted` before that has finished. Across six consecutive deploys of an identical
-    tree, two left the site partially broken: some routes rendered normally while every
-    DB-backed route 500'd. It does **not** reliably self-heal — one instance was still broken
-    after ten minutes of polling. Redeploying fixed it both times.
+10. **Never let two deployment mechanisms write to overlapping paths.** On pms.hotezo.com an
+    hPanel Git deployment was configured to check this repo out into `public_html/public/` — the
+    app's own `public/` directory — while releases were also being pushed as archives to
+    `public_html`. Every `git push` to `main` then re-created the checkout and broke the live
+    site.
 
-    The failure mode is deceptive because it is partial and it looks exactly like an application
-    bug. Resist that reading. Before touching code, confirm the deployed tree is actually what
-    you shipped:
+    The mechanism is worth understanding, because the symptom points nowhere near the cause. The
+    checkout drops the repo's **root** `.htaccess` on top of `public/.htaccess` and creates
+    `public/app/`, `public/config/`, `public/public/`. Requests then route `/explore` ->
+    `public/explore` -> (root-style rules now sitting in `public/.htaccess`) ->
+    `public/public/index.php`, so the app runs from the nested checkout. That copy has no `.env`
+    — it is gitignored — so `config/database.php` falls back to its defaults (`root`@`127.0.0.1`,
+    database `hotezo`), every query throws, and the request 500s.
 
-    ```
-    find <docroot> -name '*.php' -exec md5sum {} + | awk '{print $1}' | sort | md5sum
-    ```
+    So **only database-backed routes fail.** `/` and `GET /login` render perfectly because they
+    never query anything, which makes the site look healthy while every login and `/explore` is
+    dead. It also looks intermittent and unrelated to deploying, because the trigger is a push.
 
-    against the same command over your local copy. A good deploy is byte-identical; if the
-    hashes differ, redeploy rather than debug. (Without SSH, run the server side of that through
-    the cron runner described in step 8.)
+    If you hit this shape of failure, don't start in the code. Check what is actually on disk:
+    `public/` must contain exactly `assets/`, `.htaccess` and `index.php`. Anything else there
+    is a second deployer writing into it. To confirm which commit a stray tree came from,
+    compare `git cat-file -s <commit>:<path>` for a few files against the sizes the host reports
+    — an exact match across several files identifies the commit precisely. (Archive-deployed
+    files are slightly larger than the git blobs when `git archive` runs on Windows, since it
+    applies CRLF; the delta equals the line count. That is not corruption.)
 
-    Then smoke-test the routes that exercise the **database**, not just the pages that render:
-    `GET /explore` and a real password login (`POST /login` — not only the demo quick-login,
-    which takes a different code path), landing on `/dashboard`. A GET-only pass over `/` and
-    `/login` will happily report success while every login on the site is broken.
+    The durable fix is to point the Git deployment at the document root, or disconnect it and
+    deploy one way only. Until then the ordering is load-bearing: **push first, deploy last**,
+    since the archive deploy wipes the document root and takes the stray checkout with it.
+
+    Whatever the mechanism, smoke-test the routes that exercise the **database**, not just the
+    pages that render: `GET /explore` and a real password login (`POST /login` — not only the
+    demo quick-login, which takes a different code path), landing on `/dashboard`. A GET-only
+    pass over `/` and `/login` will happily report success while every login on the site is
+    broken. Verifying the tree is what you shipped is worth it too:
+    `find <docroot> -name '*.php' -exec md5sum {} + | awk '{print $1}' | sort | md5sum` against
+    the same command over your local copy — byte-identical when the deploy is clean. (Without
+    SSH, run the server side through the cron runner from step 8.)
 11. **Verify the security posture** once live: confirm the site redirects HTTP -> HTTPS, and check
     response headers (`curl -sI https://yourdomain.tld`) show `Strict-Transport-Security`,
     `Content-Security-Policy`, `X-Frame-Options: DENY`, and no server-side stack traces on a
