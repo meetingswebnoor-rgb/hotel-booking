@@ -956,21 +956,30 @@ handling; the front controller is `public/index.php`). `APP_ENV=local` in `.env`
 9. **Confirm `public/assets/uploads/` is writable** by the PHP process (hotel hero/gallery images
    go there via `App\Core\FileUpload`) — typically already correct on shared hosting, but check
    permissions if uploads start failing silently.
-10. **Clear the server cache after every deploy, then smoke-test before trusting the result.**
-    OPcache is on (`opcache.enable=On`) and shared hosts also layer their own page cache in
-    front, so a deploy that replaces files under a live PHP-FPM/LiteSpeed worker can leave stale
-    bytecode serving alongside the new tree. The symptom is nasty precisely because it is
-    partial: most routes answer correctly while one code path 500s, which reads exactly like an
-    application bug and sends you hunting through code that is fine. On Hostinger, hPanel ->
-    Website -> Clear cache (or the API's clear-cache call) purges both.
+10. **Treat a deploy as unverified until you have smoke-tested it — it lands intermittently.**
+    Hostinger's deploy-from-archive API (`hosting_deployStaticWebsite`, which works fine for PHP
+    despite the name) wipes the document root and extracts into it, and returns
+    `Request accepted` before that has finished. Across six consecutive deploys of an identical
+    tree, two left the site partially broken: some routes rendered normally while every
+    DB-backed route 500'd. It does **not** reliably self-heal — one instance was still broken
+    after ten minutes of polling. Redeploying fixed it both times.
 
-    So a deploy is not finished when the upload succeeds. Clear the cache, then smoke-test the
-    routes that exercise *writes*, not just the pages that render: log in with a real password
-    (`POST /login`, not only a demo quick-login), and confirm a dashboard loads. A GET-only pass
-    will happily report success while logins are broken. If something 500s, redeploy and clear
-    cache before assuming the code is at fault — and verify the deployed tree really is what you
-    shipped (`find app -name '*.php' -exec md5sum {} + | awk '{print $1}' | sort | md5sum`
-    against the same command over your local copy) rather than inferring it.
+    The failure mode is deceptive because it is partial and it looks exactly like an application
+    bug. Resist that reading. Before touching code, confirm the deployed tree is actually what
+    you shipped:
+
+    ```
+    find <docroot> -name '*.php' -exec md5sum {} + | awk '{print $1}' | sort | md5sum
+    ```
+
+    against the same command over your local copy. A good deploy is byte-identical; if the
+    hashes differ, redeploy rather than debug. (Without SSH, run the server side of that through
+    the cron runner described in step 8.)
+
+    Then smoke-test the routes that exercise the **database**, not just the pages that render:
+    `GET /explore` and a real password login (`POST /login` — not only the demo quick-login,
+    which takes a different code path), landing on `/dashboard`. A GET-only pass over `/` and
+    `/login` will happily report success while every login on the site is broken.
 11. **Verify the security posture** once live: confirm the site redirects HTTP -> HTTPS, and check
     response headers (`curl -sI https://yourdomain.tld`) show `Strict-Transport-Security`,
     `Content-Security-Policy`, `X-Frame-Options: DENY`, and no server-side stack traces on a
