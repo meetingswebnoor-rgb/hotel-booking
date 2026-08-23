@@ -15,6 +15,7 @@ return new class extends Seeder {
             BASE_PATH . '/database/seeders/OtaSeeder.php',
             BASE_PATH . '/database/seeders/SuperAdminSeeder.php',
             BASE_PATH . '/database/seeders/HotelSeeder.php',
+            BASE_PATH . '/database/seeders/CompanyComplianceSeeder.php',
             BASE_PATH . '/database/seeders/BookingSeeder.php',
             BASE_PATH . '/database/seeders/DemoUsersSeeder.php',
         ];

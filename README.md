@@ -165,20 +165,24 @@ under the `hotezo-theme` key, and defaults to the visitor's OS preference otherw
 
 ## Database schema
 
-27 tables, all InnoDB, all with the standard audit columns (see Conventions below). Numbered
+28 tables, all InnoDB, all with the standard audit columns (see Conventions below). Numbered
 migration files in [database/migrations/](database/migrations/) create them in this dependency
 order — each file's doc comment explains any non-obvious modeling decision. `0026`-`0028` are
-`ALTER TABLE` migrations on top of the original 25 (no new tables, hence 27 not 28): `0026` adds
-`hotel_id` to `user_permissions` so overrides can be hotel-scoped (auth/authorization system),
-`0027` adds `failed_login_attempts`/`locked_until` to `users` for login rate-limiting (same), and
-`0028` adds `is_demo` to `users` for the landing page's seeded quick-login accounts.
+`ALTER TABLE` migrations on top of the original 25 (no new tables): `0026` adds `hotel_id` to
+`user_permissions` so overrides can be hotel-scoped (auth/authorization system), `0027` adds
+`failed_login_attempts`/`locked_until` to `users` for login rate-limiting (same), `0028` adds
+`is_demo` to `users` for the landing page's seeded quick-login accounts. `0029` adds `brand_color`
+to `otas`; `0030` creates `ota_reviews` (OTA Management); `0031` adds the commission-invoice
+breakup columns to `commission_invoices`; `0032` creates `commission_invoice_number_sequence`
+(Commission Invoices) — the two `CREATE TABLE`s in that run of four are what takes the total from
+25 to 28.
 
 | Area | Tables |
 | --- | --- |
 | Identity & access | `roles`, `users`, `user_hotels`, `user_permissions` |
-| Inventory | `hotels`, `rooms`, `rate_plans`, `otas` |
+| Inventory | `hotels`, `rooms`, `rate_plans`, `otas`, `ota_reviews` |
 | Bookings & money | `bookings`, `settlements` |
-| Invoicing | `invoice_number_sequence`, `service_invoice_number_sequence`, `company_compliance_details`, `invoice_settings`, `guest_invoices`, `commission_invoices`, `service_invoices`, `invoices` |
+| Invoicing | `invoice_number_sequence`, `service_invoice_number_sequence`, `commission_invoice_number_sequence`, `company_compliance_details`, `invoice_settings`, `guest_invoices`, `commission_invoices`, `service_invoices`, `invoices` |
 | Notifications & email | `notification_settings`, `notification_logs`, `email_templates`, `email_queue`, `invoice_email_logs` |
 | Logs | `booking_voucher_logs`, `audit_logs` |
 
@@ -204,6 +208,12 @@ Worth knowing before extending it:
   `adults`, `children`, `quantity`, `nightly_rate` — since one booking can span multiple room
   types. Nights lives once at the booking level (`bookings.nights`), not per line, since check-in/
   check-out apply to the whole stay. See "Booking entry form" below for how these get computed.
+- **`commission_invoice_number_sequence` is scoped by `billing_entity_id`, not `hotel_id`** —
+  deliberately different from its two siblings. `invoice_number_sequence` and
+  `service_invoice_number_sequence` are per-hotel because each hotel is its own GST-registered
+  issuer; commission invoices are the reverse direction (Hotezo billing the hotel), so one Hotezo
+  billing entity's numbering must run continuously across every hotel it invoices, not restart per
+  hotel. See "Commission Invoices" below.
 
 ## Authentication & authorization
 
@@ -770,6 +780,86 @@ only) never found it, the init function's guard clause returned early, and Enter
 through to native form submission instead of adding a tag. Both were caught by browser-driven
 testing, not code review — the markup and the route registration both looked correct on read-through.
 
+## Commission Invoices
+
+`App\Controllers\CommissionInvoiceController` — Hotezo billing a hotel for Hotezo's own commission,
+not a guest-facing document. Flow: pick a **hotel + month + billing entity** (the last one a
+state-registered `company_compliance_details` row with `hotel_id IS NULL` — one of Hotezo's own
+entities, seeded by `database/seeders/CompanyComplianceSeeder.php`) →
+`GET /commission-invoices/preview` pulls that hotel's confirmed/checked-in/checked-out bookings for
+the month and returns a computed breakup as JSON → the generator form
+([app/Views/pages/admin/commission-invoices/create.php](app/Views/pages/admin/commission-invoices/create.php),
+`public/assets/js/commission-invoice-form.js`) populates every figure into an **editable** field —
+nothing is saved until "Generate Invoice" is clicked → `POST /commission-invoices` re-derives
+`total_tax`/`grand_total`/`net_receivable` from whatever was actually submitted (not from a fresh
+booking pull) and saves. The generated document
+([app/Views/pages/admin/commission-invoices/show.php](app/Views/pages/admin/commission-invoices/show.php))
+reuses the booking voucher's `layouts/print` + `print.css` (new `.invoice-*` classes added
+alongside the existing `.voucher-*` ones) — a real letterhead, Bill-To/HSN-SAC block, tax table,
+"amount in words," bank details, and signatory block, "Print / Save as PDF" via the browser's own
+print-to-PDF (same `[data-print-trigger]` → `window.print()` script the voucher already used).
+
+### The math: what's billed vs what's informational vs what's withheld
+
+`App\Services\CommissionInvoiceService::computeBreakup()` sums, across the period's billable
+bookings: room nights (decoded from each booking's `rooms` JSON, quantity × nights, summed), room
+rent, OTA commission, and Hotezo commission. Only **Hotezo's own commission** is the taxable value
+GST is charged on — OTA commission is shown for context but isn't part of what Hotezo bills the
+hotel for (the OTA would invoice separately for its own cut). GST splits into CGST+SGST
+(intra-state) or IGST (inter-state) via the existing `gst()` helper, decided by comparing the
+billing entity's `state_code` against the hotel's — derived from the first two digits of
+`hotels.gst_number` (the GSTIN standard: e.g. "27" = Maharashtra), since `hotels` has no separate
+state column and adding one was out of scope for this module. TDS and TCS apply against **total
+room rent** (the gross transaction value), the same base `App\Services\BookingCalculator` already
+uses per booking — not against the commission — and are shown as withheld-by-the-hotel deductions
+from `grand_total`, not additions to it, landing at `net_receivable`.
+
+**Flagged discrepancy, not resolved:** `config/invoicing.php` sets TCS at 0.25% for commission
+invoices, per this module's spec. `App\Services\BookingCalculator::TCS_RATE` (used for the
+per-booking TCS on the booking form and bookings list) is 0.5%, per that module's original spec.
+Both are real, both are live, and they disagree with each other — this was surfaced, not fixed,
+because there's no way to know which is correct without asking whoever owns the actual tax filing.
+Both rates are config constants specifically so reconciling them later is a one-line change; see
+`config/invoicing.php`'s docblock for the full note. TDS (0.1%) matches between the two already, so
+it isn't in question.
+
+### "Fully editable" is a different contract than the booking form's
+
+Every breakup figure — including the GST rate/amount split itself — is a plain, editable `<input>`.
+Editing `taxable_value` or a GST rate auto-re-derives that tax's own amount field
+(`deriveGstAmounts()` in the form JS) so the two stay consistent by default, but the amount field
+stays independently editable afterward for a manual override that won't get silently overwritten
+unless the taxable value or rate changes again. This is intentionally different from
+`BookingCalculator`, which never trusts client-submitted numbers: a booking's price is computed
+once and never manually overridden, but an accountant reconciling what a hotel actually owes
+sometimes needs to. `commission-invoice-form.js` also arms a `beforeunload` warning once any field
+has been touched, cleared only on actual form submission — the first `beforeunload` handler in this
+codebase.
+
+### Numbering: a new, correctly-scoped sequence table, not a reused one
+
+Invoice numbers are `{state code}-{financial year}-{4-digit sequence}` (e.g. `27-2026-27-0002`);
+bill numbers are `HZC-{same sequence}`. Both come from one atomic
+`INSERT ... ON DUPLICATE KEY UPDATE last_number = last_number + 1` against
+`commission_invoice_number_sequence` (safe under concurrent generation — no separate
+SELECT-then-UPDATE race). `fy_label()` (`app/Helpers/helpers.php`) needed a real fix to support
+this: it returned `"FY 2025-26"` (10 characters), which does not fit any of the `financial_year
+VARCHAR(9)` columns that reference it across `commission_invoices`, `invoices`,
+`invoice_number_sequence`, and `service_invoice_number_sequence` — a latent bug that had never
+triggered because nothing called the helper until this module did. It now returns `"2025-26"` (7
+characters), matching this spec's own example.
+
+### Access
+
+Gated narrower than the rest of the app's `invoices` permission (shared with
+`hotel_manager`/`front_desk`/`reservation_manager` for guest/service invoicing, a different
+concern): `CommissionInvoiceController::canManage()` checks `Auth::hasRole('accounts') ||
+role_at_least(RoleLevel::ADMIN)` directly — Super Admin, Admin, or Accounts only. Verified against
+the real app: `hotel_manager` gets no sidebar item and a `403` on a direct `GET
+/commission-invoices`; a temporary `accounts`-role test user could reach it and saw only their
+`user_hotels`-assigned hotel in the picker (the same scope-narrows-never-widens rule as every other
+hotel-scoped module).
+
 ## Public landing page
 
 `GET /` (`App\Controllers\HomeController::index()`, [app/Views/pages/public/home.php](app/Views/pages/public/home.php))
@@ -1061,9 +1151,11 @@ handling; the front controller is `public/index.php`). `APP_ENV=local` in `.env`
 
 User management (create/edit users — enforcing `Permission::canManageRoleLevel()`, and giving the
 Hotel hub's Staff tab a way to actually assign someone rather than only list existing
-`user_hotels` rows), the Inventory calendar, settlements, and PDF invoice generation (which would
-finally give the Hotel hub's Invoices tab real rows) — each arrives as its own module inside the
-app shell.
+`user_hotels` rows), the Inventory calendar, settlements, and guest/service invoice generation
+(commission invoicing is now built — see "Commission Invoices" — but `guest_invoices` and
+`service_invoices`, the other two of the three `invoices.invoice_type` values, still have no
+generator; that's what would finally give the Hotel hub's Invoices tab real rows) — each arrives as
+its own module inside the app shell.
 
 **OTA list note:** `otas` seeds 10 rows, not 9 — `Hostelworld` (from the original schema-module
 spec) and `Hotels.com` (named later, for the booking form) are both kept rather than one replacing

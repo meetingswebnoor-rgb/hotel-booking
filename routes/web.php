@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Controllers\AuthController;
 use App\Controllers\BookingController;
+use App\Controllers\CommissionInvoiceController;
 use App\Controllers\DashboardController;
 use App\Controllers\HomeController;
 use App\Controllers\HotelController;
@@ -130,6 +131,24 @@ return function (Router $router): void {
         $router->post('/reviews/{id}/delete', [OtaController::class, 'destroyReview'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'otas.reviews.destroy');
         $router->post('/{id}', [OtaController::class, 'update'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'otas.update');
         $router->post('/{id}/delete', [OtaController::class, 'destroy'], [[RoleMiddleware::class, RoleLevel::ADMIN]], name: 'otas.destroy');
+    });
+
+    // Commission invoices (Hotezo billing a hotel for Hotezo's own
+    // commission) are gated narrower than the rest of the app's
+    // 'invoices' permission module — Super Admin, Admin, or Accounts
+    // only, checked directly in the controller (config/permissions.php's
+    // 'invoices' entry is shared with hotel_manager/front_desk for
+    // guest/service invoicing, which is a different concern). MANAGER
+    // is the route-level floor since `accounts` is level 2; the
+    // controller's canManage() does the real, role-name-specific check.
+    // /create and /preview must be registered before /{id} — same
+    // static-before-dynamic ordering rule as every other group here.
+    $router->group(['prefix' => '/commission-invoices', 'middleware' => [AuthMiddleware::class, HotelScopeMiddleware::class]], function (Router $router): void {
+        $router->get('/', [CommissionInvoiceController::class, 'index'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.index');
+        $router->get('/create', [CommissionInvoiceController::class, 'create'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.create');
+        $router->get('/preview', [CommissionInvoiceController::class, 'preview'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.preview');
+        $router->post('/', [CommissionInvoiceController::class, 'store'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.store');
+        $router->get('/{id}', [CommissionInvoiceController::class, 'show'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.show');
     });
 
     // App shell endpoints — used by every admin page's topbar/sidebar.

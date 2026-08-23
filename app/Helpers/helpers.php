@@ -292,7 +292,13 @@ if (!function_exists('gst')) {
 
 if (!function_exists('fy_label')) {
     /**
-     * Indian financial year label (April–March) for a given date.
+     * Indian financial year label (April–March) for a given date, e.g.
+     * "2025-26" — no "FY " prefix: every `financial_year` column this
+     * feeds (commission_invoices, invoices, invoice_number_sequence,
+     * service_invoice_number_sequence) is VARCHAR(9), and "FY 2025-26"
+     * is 10 characters — it would not have fit. Not caught earlier
+     * because nothing called this helper until the commission-invoice
+     * module did.
      */
     function fy_label(?string $date = null): string
     {
@@ -304,6 +310,89 @@ if (!function_exists('fy_label')) {
 
         [$start, $end] = $month >= 4 ? [$year, $year + 1] : [$year - 1, $year];
 
-        return "FY {$start}-" . substr((string) $end, -2);
+        return "{$start}-" . substr((string) $end, -2);
+    }
+}
+
+if (!function_exists('amount_in_words')) {
+    /**
+     * Indian-numbering (lakh/crore) amount-in-words for the "Total in
+     * words" line a GST invoice needs — e.g. 1234567.50 becomes
+     * "Twelve Lakh Thirty Four Thousand Five Hundred Sixty Seven Rupees
+     * and Fifty Paise Only".
+     */
+    function amount_in_words(float $amount): string
+    {
+        $amount = round(abs($amount), 2);
+        $rupees = (int) floor($amount);
+        $paise = (int) round(($amount - $rupees) * 100);
+
+        $words = $rupees === 0 ? 'Zero' : _amount_in_words_indian_grouping($rupees);
+        $result = trim($words) . ' Rupees';
+
+        if ($paise > 0) {
+            $result .= ' and ' . trim(_amount_in_words_below_hundred($paise)) . ' Paise';
+        }
+
+        return $result . ' Only';
+    }
+}
+
+if (!function_exists('_amount_in_words_below_hundred')) {
+    function _amount_in_words_below_hundred(int $n): string
+    {
+        $ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+            'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+        $tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+        if ($n < 20) {
+            return $ones[$n];
+        }
+
+        return trim($tens[intdiv($n, 10)] . ' ' . $ones[$n % 10]);
+    }
+}
+
+if (!function_exists('_amount_in_words_indian_grouping')) {
+    /**
+     * Splits into crore / lakh / thousand / hundred groups (the Indian
+     * digit-grouping system: 2-digit groups after the first 3 digits,
+     * not the international 3-digit-everywhere grouping) rather than
+     * converting the whole number in one pass.
+     */
+    function _amount_in_words_indian_grouping(int $n): string
+    {
+        $parts = [];
+
+        $crore = intdiv($n, 10000000);
+        $n %= 10000000;
+        $lakh = intdiv($n, 100000);
+        $n %= 100000;
+        $thousand = intdiv($n, 1000);
+        $n %= 1000;
+        $hundred = intdiv($n, 100);
+        $remainder = $n % 100;
+
+        if ($crore > 0) {
+            $parts[] = _amount_in_words_below_hundred($crore) . ' Crore';
+        }
+
+        if ($lakh > 0) {
+            $parts[] = _amount_in_words_below_hundred($lakh) . ' Lakh';
+        }
+
+        if ($thousand > 0) {
+            $parts[] = _amount_in_words_below_hundred($thousand) . ' Thousand';
+        }
+
+        if ($hundred > 0) {
+            $parts[] = _amount_in_words_below_hundred($hundred) . ' Hundred';
+        }
+
+        if ($remainder > 0) {
+            $parts[] = _amount_in_words_below_hundred($remainder);
+        }
+
+        return implode(' ', $parts);
     }
 }

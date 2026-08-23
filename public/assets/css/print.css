@@ -1,7 +1,9 @@
 /* ==========================================================================
-   PRINT.CSS — booking voucher page only, loaded by layouts/print.php.
-   On-screen preview reuses app.css tokens; the rules here lay out the
-   voucher itself and strip everything down for @media print.
+   PRINT.CSS — print-optimized pages only (booking vouchers, commission
+   invoices), loaded by layouts/print.php. On-screen preview reuses
+   app.css tokens; the rules here lay out the page itself and strip
+   everything down for @media print. The .voucher-* classes are shared
+   by both document types; .invoice-* below are commission-invoice-only.
    ========================================================================== */
 
 .print-body {
@@ -127,6 +129,73 @@
   font-size: 0.75rem;
   color: var(--text-low);
   padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+}
+
+/* ------------------------------ Commission invoice ----------------------------- */
+.invoice-letterhead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-bottom: var(--space-6);
+  border-bottom: 2px solid var(--color-primary-2);
+  margin-bottom: var(--space-6);
+}
+
+.invoice-letterhead h1 {
+  font-size: 1.5rem;
+}
+
+.invoice-letterhead p {
+  font-size: 0.8125rem;
+  margin-top: 2px;
+}
+
+.invoice-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-5);
+  padding: var(--space-4);
+  margin-bottom: var(--space-6);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+}
+
+.invoice-parties {
+  grid-template-columns: repeat(2, 1fr);
+  margin-bottom: var(--space-6);
+}
+
+.invoice-amount-words {
+  font-size: 0.9375rem;
+  padding: var(--space-4);
+  margin-bottom: var(--space-6);
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+}
+
+.invoice-bank-details {
+  font-size: 0.875rem;
+  margin-bottom: var(--space-8);
+}
+
+.invoice-signatory {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-top: var(--space-8);
+}
+
+.invoice-signatory__block {
+  text-align: center;
+  min-width: 220px;
+}
+
+.invoice-signatory__line {
+  margin-top: var(--space-10);
+  padding-top: var(--space-2);
   border-top: 1px solid var(--border);
 }
 

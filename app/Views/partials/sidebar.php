@@ -1,4 +1,5 @@
 <?php
+use App\Core\Auth;
 use App\Core\RoleLevel;
 
 /**
@@ -12,6 +13,15 @@ use App\Core\RoleLevel;
  */
 $active ??= '';
 
+// Commission Invoices is intentionally its own nav item, not folded
+// into the generic "Invoices" placeholder above it — that one is
+// gated by the shared 'invoices' permission (hotel_manager/front_desk
+// included, for guest/service invoicing); commission invoicing is
+// Hotezo's own internal billing, restricted to Super Admin/Admin/
+// Accounts specifically, same role check as
+// CommissionInvoiceController::canManage().
+$canManageCommissionInvoices = Auth::hasRole('accounts') || role_at_least(RoleLevel::ADMIN);
+
 $navItems = [
     ['key' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid', 'href' => route('dashboard'), 'visible' => true],
     ['key' => 'bookings', 'label' => 'Bookings', 'icon' => 'calendar', 'href' => can('bookings', 'view') ? route('bookings.index') : null, 'visible' => can('bookings', 'view')],
@@ -20,6 +30,7 @@ $navItems = [
     ['key' => 'rate-plans', 'label' => 'Rate Plans', 'icon' => 'tag', 'href' => can('rate_plans', 'view') ? route('rate-plans.index') : null, 'visible' => can('rate_plans', 'view')],
     ['key' => 'otas', 'label' => 'OTAs', 'icon' => 'share', 'href' => can('otas', 'view') ? route('otas.index') : null, 'visible' => can('otas', 'view')],
     ['key' => 'invoices', 'label' => 'Invoices', 'icon' => 'file-text', 'visible' => can('invoices', 'view')],
+    ['key' => 'commission-invoices', 'label' => 'Commission Invoices', 'icon' => 'printer', 'href' => $canManageCommissionInvoices ? route('commission-invoices.index') : null, 'visible' => $canManageCommissionInvoices],
     ['key' => 'reports', 'label' => 'Reports', 'icon' => 'bar-chart', 'visible' => can('reports', 'view')],
     ['key' => 'users', 'label' => 'Users', 'icon' => 'users', 'visible' => can('users', 'view')],
     ['key' => 'emails', 'label' => 'Emails', 'icon' => 'mail', 'visible' => can('emails', 'view')],
