@@ -12,6 +12,13 @@ import { api } from './api.js';
 import { animateCountUp } from './animations.js';
 import { formatIndianCurrency } from './format.js';
 
+const BASE_PAYMENT_STATUSES = [
+  ['pending', 'Pending'],
+  ['paid', 'Paid'],
+  ['hold', 'Hold'],
+  ['disputed', 'Disputed'],
+];
+
 const GST_LOW_RATE = 5.0;
 const GST_HIGH_RATE = 18.0;
 const GST_THRESHOLD = 7499.0;
@@ -84,6 +91,40 @@ function deriveSource(otaSelect) {
   if (name === 'Direct Booking') return 'online';
 
   return name ? 'ota' : 'online';
+}
+
+/**
+ * OTAs can define extra payment-status labels beyond the base four
+ * (App\Services\OtaService::parseCustomPaymentStatuses) — merged in
+ * here whenever the selected OTA changes, and once on page load so an
+ * edit-mode booking whose saved status is one of those custom labels
+ * still has a matching <option> instead of silently falling back to
+ * the first one.
+ */
+function updatePaymentStatusOptions(form) {
+  const select = form.querySelector('[data-payment-status-select]');
+  const otaSelect = form.querySelector('[data-ota-select]');
+  if (!select) return;
+
+  const otaOption = otaSelect?.options[otaSelect.selectedIndex];
+  let custom = [];
+
+  try {
+    custom = JSON.parse(otaOption?.dataset.customStatuses || '[]');
+  } catch {
+    custom = [];
+  }
+
+  const desired = select.dataset.currentValue || select.value || 'pending';
+  const baseValues = BASE_PAYMENT_STATUSES.map(([value]) => value);
+  const extra = custom.filter((label) => !baseValues.includes(label));
+
+  select.innerHTML = [...BASE_PAYMENT_STATUSES, ...extra.map((label) => [label, label])]
+    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+    .join('');
+
+  select.value = Array.from(select.options).some((o) => o.value === desired) ? desired : 'pending';
+  select.dataset.currentValue = '';
 }
 
 function renderSummary(result) {
@@ -332,5 +373,8 @@ document.addEventListener('DOMContentLoaded', () => {
     el.addEventListener('change', () => recalc(form));
   });
 
+  form.querySelector('[data-ota-select]')?.addEventListener('change', () => updatePaymentStatusOptions(form));
+
+  updatePaymentStatusOptions(form);
   recalc(form);
 });

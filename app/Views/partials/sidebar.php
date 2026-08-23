@@ -18,7 +18,7 @@ $navItems = [
     ['key' => 'hotels', 'label' => 'Hotels', 'icon' => 'home', 'href' => can('hotels', 'view') ? route('hotels.index') : null, 'visible' => can('hotels', 'view')],
     ['key' => 'rooms', 'label' => 'Rooms', 'icon' => 'layers', 'href' => can('rooms', 'view') ? route('rooms.index') : null, 'visible' => can('rooms', 'view')],
     ['key' => 'rate-plans', 'label' => 'Rate Plans', 'icon' => 'tag', 'href' => can('rate_plans', 'view') ? route('rate-plans.index') : null, 'visible' => can('rate_plans', 'view')],
-    ['key' => 'otas', 'label' => 'OTAs', 'icon' => 'share', 'visible' => can('otas', 'view')],
+    ['key' => 'otas', 'label' => 'OTAs', 'icon' => 'share', 'href' => can('otas', 'view') ? route('otas.index') : null, 'visible' => can('otas', 'view')],
     ['key' => 'invoices', 'label' => 'Invoices', 'icon' => 'file-text', 'visible' => can('invoices', 'view')],
     ['key' => 'reports', 'label' => 'Reports', 'icon' => 'bar-chart', 'visible' => can('reports', 'view')],
     ['key' => 'users', 'label' => 'Users', 'icon' => 'users', 'visible' => can('users', 'view')],

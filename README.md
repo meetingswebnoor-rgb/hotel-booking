@@ -712,6 +712,64 @@ destroy stays at `HOTEL_MANAGER` since no lower role has delete. Verified agains
 Rooms (`layers` icon) and Rate Plans (`tag` icon) were added to `partials/sidebar.php`, gated by
 `can('rooms', 'view')` / `can('rate_plans', 'view')` — same convention as every other item.
 
+## OTA Management
+
+`GET /otas` (`App\Controllers\OtaController`, [app/Views/pages/admin/otas/index.php](app/Views/pages/admin/otas/index.php))
+— a brand-colored card grid of OTA partners plus a Reviews section underneath. OTAs are global
+records, not hotel-scoped, so this is the first admin module whose route group carries no
+`HotelScopeMiddleware` and no per-hotel filter.
+
+Each card: a monogram in the OTA's own `brand_color` (a real, admin-editable column — distinct
+from `format.js`'s `otaBadgeColor()`, which hashes a name into a shared palette for places, like
+the bookings list, that only ever see an OTA's *name*, never its record), commission %, review
+count and average star rating, settlement rules, and any custom payment-status tags. No real OTA
+logos are bundled — same "colored initial instead of a brand mark" convention as the landing
+page's OTA marquee and the bookings list's OTA badges.
+
+### Custom payment statuses feed the booking form
+
+`otas.custom_payment_statuses` (JSON, added in the original schema module but unused until this
+one) holds free-text labels an OTA needs beyond the base Pending/Paid/Hold/Disputed set — e.g. an
+OTA that settles through an escrow account might add "Escrow Hold". The booking form's OTA
+`<select>` carries each option's statuses as a `data-custom-statuses` JSON attribute;
+`public/assets/js/booking-form.js`'s `updatePaymentStatusOptions()` rebuilds the payment-status
+`<select>` (base four + that OTA's extras) whenever the OTA changes, and once more on page load so
+an edit-mode booking whose saved status is a custom label still has a matching `<option>` instead
+of silently coercing to the first one. Server-side, `BookingController::save()` no longer validates
+`ota_payment_status` against a fixed `Validator` rule — it merges the submitted booking's actual
+OTA's custom statuses into the allowed set before checking, so a custom label the client didn't
+invent can't slip through, but a real one can.
+
+### Reviews
+
+`ota_reviews` (new table this module, `App\Models\OtaReview`) — rating (1–5, a clickable star
+picker in the Add Review modal, `public/assets/js/otas.js`), author, and text, soft-deletable
+independently of the OTA. The card grid's own star display and the review list's per-review stars
+share one PHP closure in the view rather than duplicating the 1-through-5 loop.
+
+### Permissions
+
+`config/permissions.php` already had an `otas` module from the original schema pass: `admin` gets
+full CRUD, `ota_manager` gets view/create/edit (no delete), `read_only` gets view — exactly "Only
+Admin / Super Admin / OTA Manager can manage OTAs, and only Admin can delete." Route-level gates
+mirror the lowest role each action is actually granted to (`MANAGER` for create/edit, `ADMIN` for
+delete) rather than a single fixed level, same convention the Rooms/Rate Plans fix established —
+verified end-to-end with `hotel_manager` (no `otas` permissions at all: no sidebar item, `403` on a
+direct `GET /otas`) and `admin` (sees every Remove button).
+
+### A route-ordering bug this module's own test caught
+
+`POST /otas/reviews` initially 404'd — `/otas/{id}` (the OTA update route) was registered *before*
+`/otas/reviews`, so the router's dynamic segment greedily matched `id = "reviews"` first, exactly
+the pitfall the `/hotels` group's own comment already warns about ("static-looking sub-paths must
+be registered before the dynamic `/{id}` route"). Fixed by moving `/reviews` and
+`/reviews/{id}/delete` above `/{id}` in the route group. A second, unrelated bug in the same pass:
+the custom-payment-statuses tag input's hidden field was written as a *sibling* of the
+`.tag-input` div instead of a child, so `root.querySelector('[data-tag-input-value]')` (descendants
+only) never found it, the init function's guard clause returned early, and Enter silently fell
+through to native form submission instead of adding a tag. Both were caught by browser-driven
+testing, not code review — the markup and the route registration both looked correct on read-through.
+
 ## Public landing page
 
 `GET /` (`App\Controllers\HomeController::index()`, [app/Views/pages/public/home.php](app/Views/pages/public/home.php))

@@ -122,9 +122,11 @@ View::section('breadcrumbs');
           <label for="ota_id">OTA Source</label>
           <select class="select" id="ota_id" name="ota_id" data-ota-select required>
             <?php foreach ($otas as $o): ?>
+              <?php $customStatuses = !empty($o['custom_payment_statuses']) ? (json_decode((string) $o['custom_payment_statuses'], true) ?: []) : []; ?>
               <option
                 value="<?= e($o['id']) ?>"
                 data-commission="<?= e((string) $o['commission_pct']) ?>"
+                data-custom-statuses="<?= e((string) json_encode($customStatuses)) ?>"
                 <?= ((string) ($booking['ota_id'] ?? old('ota_id'))) === $o['id'] ? 'selected' : '' ?>
               ><?= e($o['name']) ?></option>
             <?php endforeach; ?>
@@ -188,7 +190,7 @@ View::section('breadcrumbs');
       <h3 class="mb-4">Payment</h3>
       <div class="field">
         <label for="ota_payment_status">OTA Payment Status</label>
-        <select class="select" id="ota_payment_status" name="ota_payment_status" style="max-width: 280px;">
+        <select class="select" id="ota_payment_status" name="ota_payment_status" style="max-width: 280px;" data-payment-status-select data-current-value="<?= e((string) ($booking['ota_payment_status'] ?? old('ota_payment_status', 'pending'))) ?>">
           <?php foreach ($paymentStatusOptions as $value => $label): ?>
             <option value="<?= e($value) ?>" <?= ((string) ($booking['ota_payment_status'] ?? old('ota_payment_status', 'pending'))) === $value ? 'selected' : '' ?>><?= e($label) ?></option>
           <?php endforeach; ?>

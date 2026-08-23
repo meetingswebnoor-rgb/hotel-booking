@@ -1123,3 +1123,182 @@
   font-size: 0.6875rem;
   color: var(--text-low);
 }
+
+/* ------------------------------- OTA Management ----------------------------- */
+.ota-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-6);
+}
+
+.ota-card {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  border-top: 3px solid var(--ota-color, var(--color-primary));
+}
+
+.ota-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ota-card__monogram {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.ota-card__title h3 {
+  font-size: 1.05rem;
+  margin-bottom: var(--space-1);
+}
+
+.ota-card__stats {
+  display: flex;
+  gap: var(--space-6);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.ota-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ota-card__stat strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.ota-card__stat span {
+  font-size: 0.75rem;
+  color: var(--text-low);
+}
+
+.ota-card__settlement {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.ota-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ota-card__actions {
+  display: flex;
+  gap: var(--space-4);
+  font-size: 0.8125rem;
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+/* Star rating: a clickable 1-5 picker (Add Review modal) and a
+   read-only display variant (cards, review list) share the same
+   markup/classes — the picker just adds hover/click behavior via
+   otas.js toggling --active on top of the same --filled visual. */
+.star-rating {
+  display: flex;
+  gap: 4px;
+}
+
+.star-rating__star {
+  color: var(--text-low);
+  transition: color var(--dur-fast), transform var(--dur-fast);
+}
+
+.star-rating__star:hover {
+  transform: scale(1.15);
+}
+
+.star-rating__star--active {
+  color: var(--color-amber);
+}
+
+.star-rating__display {
+  color: var(--text-low);
+}
+
+.star-rating__display--filled {
+  color: var(--color-amber);
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--space-6);
+}
+
+.review-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.review-card__text {
+  color: var(--text-med);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  flex: 1;
+}
+
+/* Custom-payment-status tag input (OTA modal) */
+.tag-input {
+  padding: var(--space-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.tag-input__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tag-input__chips:not(:empty) {
+  margin-bottom: var(--space-2);
+}
+
+.tag-input__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.25rem 0.6rem;
+  border-radius: var(--radius-full);
+  background: var(--gradient-primary-soft);
+  color: var(--color-primary-2);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.tag-input__chip button {
+  color: var(--color-primary-2);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tag-input__field {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.4rem 0.2rem;
+  font-size: 0.9375rem;
+  color: var(--text-high);
+}
+
+.tag-input__field:focus {
+  outline: none;
+}

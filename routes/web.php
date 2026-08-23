@@ -9,6 +9,7 @@ use App\Controllers\HomeController;
 use App\Controllers\HotelController;
 use App\Controllers\HotelFilterController;
 use App\Controllers\NotificationController;
+use App\Controllers\OtaController;
 use App\Controllers\PublicHotelController;
 use App\Controllers\RatePlanController;
 use App\Controllers\RoomController;
@@ -110,6 +111,25 @@ return function (Router $router): void {
         $router->post('/', [RatePlanController::class, 'store'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'rate-plans.store');
         $router->post('/{id}', [RatePlanController::class, 'update'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'rate-plans.update');
         $router->post('/{id}/delete', [RatePlanController::class, 'destroy'], [[RoleMiddleware::class, RoleLevel::HOTEL_MANAGER]], name: 'rate-plans.destroy');
+    });
+
+    // OTAs are global partner records, not hotel-scoped, so this group
+    // carries no HotelScopeMiddleware — unlike Rooms/Rate Plans/Bookings
+    // above, there's no per-hotel data to narrow here. Route-level gates
+    // mirror config/permissions.php's lowest-granted role per action:
+    // MANAGER (ota_manager, level 2) has create/edit, only ADMIN has
+    // delete — can() still does the real per-request enforcement.
+    //
+    // /reviews and /reviews/{id}/delete must be registered before /{id}
+    // and /{id}/delete below — same static-before-dynamic ordering rule
+    // as the /hotels group above ({id} greedily matches "reviews" too).
+    $router->group(['prefix' => '/otas', 'middleware' => [AuthMiddleware::class]], function (Router $router): void {
+        $router->get('/', [OtaController::class, 'index'], [[RoleMiddleware::class, RoleLevel::READ_ONLY]], name: 'otas.index');
+        $router->post('/', [OtaController::class, 'store'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'otas.store');
+        $router->post('/reviews', [OtaController::class, 'storeReview'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'otas.reviews.store');
+        $router->post('/reviews/{id}/delete', [OtaController::class, 'destroyReview'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'otas.reviews.destroy');
+        $router->post('/{id}', [OtaController::class, 'update'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'otas.update');
+        $router->post('/{id}/delete', [OtaController::class, 'destroy'], [[RoleMiddleware::class, RoleLevel::ADMIN]], name: 'otas.destroy');
     });
 
     // App shell endpoints — used by every admin page's topbar/sidebar.

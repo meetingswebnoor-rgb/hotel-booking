@@ -414,6 +414,15 @@ final class BookingController
             return Response::html(view('errors/403', [], 'public'), 403);
         }
 
+        // Fetched up front (rather than where $source/$calc need it
+        // further down) because payment-status validation below needs
+        // this OTA's custom_payment_statuses too — an OTA can define
+        // extra labels (e.g. "Escrow Hold") beyond the base set, which
+        // the booking form's JS merges into the dropdown for that OTA.
+        $otaIdInput = $request->input('ota_id');
+        $otaId = is_string($otaIdInput) && $otaIdInput !== '' ? $otaIdInput : null;
+        $ota = $otaId !== null ? Database::first('otas', ['id' => $otaId]) : null;
+
         $rules = [
             'guest_name' => 'required|max:150',
             'guest_mobile' => 'required|min:7|max:20',
@@ -421,9 +430,21 @@ final class BookingController
             'checkin_date' => 'required',
             'checkout_date' => 'required',
             'status' => 'required|in:' . implode(',', array_keys(self::STATUS_OPTIONS)),
-            'ota_payment_status' => 'required|in:' . implode(',', array_keys(self::PAYMENT_STATUS_OPTIONS)),
         ];
         $errors = Validator::make($request->all(), $rules)->errors();
+
+        $allowedPaymentStatuses = array_keys(self::PAYMENT_STATUS_OPTIONS);
+        if ($ota !== null && !empty($ota['custom_payment_statuses'])) {
+            $custom = json_decode((string) $ota['custom_payment_statuses'], true);
+            if (is_array($custom)) {
+                $allowedPaymentStatuses = array_values(array_unique([...$allowedPaymentStatuses, ...$custom]));
+            }
+        }
+
+        $otaPaymentStatus = (string) $request->input('ota_payment_status', '');
+        if ($otaPaymentStatus === '' || !in_array($otaPaymentStatus, $allowedPaymentStatuses, true)) {
+            $errors['ota_payment_status'][] = 'Please choose a valid payment status.';
+        }
 
         $checkin = (string) $request->input('checkin_date', '');
         $checkout = (string) $request->input('checkout_date', '');
@@ -466,9 +487,6 @@ final class BookingController
             return Response::redirect($redirectBack);
         }
 
-        $otaIdInput = $request->input('ota_id');
-        $otaId = is_string($otaIdInput) && $otaIdInput !== '' ? $otaIdInput : null;
-        $ota = $otaId !== null ? Database::first('otas', ['id' => $otaId]) : null;
         $source = $this->deriveSource($ota);
 
         $nights = BookingCalculator::nights($checkin, $checkout);
