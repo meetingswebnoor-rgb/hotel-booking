@@ -15,6 +15,7 @@ use App\Controllers\PublicHotelController;
 use App\Controllers\RatePlanController;
 use App\Controllers\RoomController;
 use App\Controllers\SearchController;
+use App\Controllers\ServiceInvoiceController;
 use App\Core\RoleLevel;
 use App\Core\Router;
 use App\Middleware\AuthMiddleware;
@@ -149,6 +150,17 @@ return function (Router $router): void {
         $router->get('/preview', [CommissionInvoiceController::class, 'preview'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.preview');
         $router->post('/', [CommissionInvoiceController::class, 'store'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.store');
         $router->get('/{id}', [CommissionInvoiceController::class, 'show'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'commission-invoices.show');
+    });
+
+    // One-off service invoices — same access rule and route-gate
+    // reasoning as commission invoices above (MANAGER floor, precise
+    // role check in the controller). /create before /{id}, same
+    // static-before-dynamic ordering as every other group.
+    $router->group(['prefix' => '/service-invoices', 'middleware' => [AuthMiddleware::class, HotelScopeMiddleware::class]], function (Router $router): void {
+        $router->get('/', [ServiceInvoiceController::class, 'index'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'service-invoices.index');
+        $router->get('/create', [ServiceInvoiceController::class, 'create'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'service-invoices.create');
+        $router->post('/', [ServiceInvoiceController::class, 'store'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'service-invoices.store');
+        $router->get('/{id}', [ServiceInvoiceController::class, 'show'], [[RoleMiddleware::class, RoleLevel::MANAGER]], name: 'service-invoices.show');
     });
 
     // App shell endpoints — used by every admin page's topbar/sidebar.

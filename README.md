@@ -852,13 +852,53 @@ characters), matching this spec's own example.
 ### Access
 
 Gated narrower than the rest of the app's `invoices` permission (shared with
-`hotel_manager`/`front_desk`/`reservation_manager` for guest/service invoicing, a different
-concern): `CommissionInvoiceController::canManage()` checks `Auth::hasRole('accounts') ||
+`hotel_manager`/`front_desk`/`reservation_manager` — which, once Service Invoices was built right
+after this module, turned out to really mean guest invoicing specifically, a different concern):
+`CommissionInvoiceController::canManage()` checks `Auth::hasRole('accounts') ||
 role_at_least(RoleLevel::ADMIN)` directly — Super Admin, Admin, or Accounts only. Verified against
 the real app: `hotel_manager` gets no sidebar item and a `403` on a direct `GET
 /commission-invoices`; a temporary `accounts`-role test user could reach it and saw only their
 `user_hotels`-assigned hotel in the picker (the same scope-narrows-never-widens rule as every other
 hotel-scoped module).
+
+## Service Invoices
+
+`App\Controllers\ServiceInvoiceController` — one-off Hotezo-to-hotel charges not tied to any
+booking (a platform fee, a manual adjustment, a credit/debit note). Same access rule as Commission
+Invoices (Super Admin/Admin/Accounts — `ServiceInvoiceController::canManage()` is the identical
+check), same print-ready output (reuses `layouts/print` + `print.css`'s `.voucher-*`/`.invoice-*`
+classes), same "editable before generating" philosophy — but a simpler flow, since there's nothing
+to pull from bookings: pick a hotel, a billing entity, type a description and amount, pick a flat
+GST rate (0/5/12/18%) and the document type (Invoice/Credit Note/Debit Note — purely a label on the
+printed document and the transaction-category selector; this module doesn't implement real
+credit/debit-note-to-original-invoice linking, out of scope for a one-off-charge generator).
+
+### No server round trip needed for the GST split
+
+Unlike the commission-invoice form (which has to ask the server for a booking pull),
+[app/Views/pages/admin/service-invoices/create.php](app/Views/pages/admin/service-invoices/create.php)
+embeds each hotel's and billing entity's GST state code as a `data-state-code` attribute directly on
+their `<option>`s at render time (hotel state derived from the GSTIN prefix via
+`CommissionInvoiceService::deriveHotelStateCode()`, reused rather than duplicated). `public/assets
+/js/service-invoice-form.js` computes the entire CGST+SGST/IGST split live in the browser the moment
+hotel + billing entity + amount are all filled in — no `/preview` endpoint exists for this module.
+The server still re-derives `total_tax`/`grand_total` from whatever was actually submitted on save,
+same "trust the submitted breakdown, not a client-computed total" rule as commission invoices.
+
+**Place of Supply** is a real state name (e.g. "Maharashtra"), not just an "Intra/Inter-state" label
+— `gst_state_name()` (`app/Helpers/helpers.php`, a new shared helper, the standard ~37 GST state
+codes) turns the derived code into a name for the printed invoice. Reused as-is by any future
+invoice-adjacent module that needs to show a state name from a code rather than building its own map.
+
+### Numbering reuses `service_invoice_number_sequence` correctly, unlike commission invoices
+
+This is the module `service_invoice_number_sequence` was actually built for: hotel-scoped, one
+sequence per hotel per financial year (`SRV-{FY}-{4-digit sequence}`), because a service invoice
+runs the same direction as a guest invoice numbering-wise — one hotel, its own sequence. Commission
+invoices needed a *new* table instead (see "Commission Invoices" above) because that direction is
+reversed (one Hotezo billing entity invoices many hotels) — this module is the contrasting case that
+confirms the earlier design call was about invoice *direction*, not something specific to commission
+invoices.
 
 ## Public landing page
 
@@ -1151,9 +1191,9 @@ handling; the front controller is `public/index.php`). `APP_ENV=local` in `.env`
 
 User management (create/edit users — enforcing `Permission::canManageRoleLevel()`, and giving the
 Hotel hub's Staff tab a way to actually assign someone rather than only list existing
-`user_hotels` rows), the Inventory calendar, settlements, and guest/service invoice generation
-(commission invoicing is now built — see "Commission Invoices" — but `guest_invoices` and
-`service_invoices`, the other two of the three `invoices.invoice_type` values, still have no
+`user_hotels` rows), the Inventory calendar, settlements, and guest invoice generation (commission
+and service invoicing are both built now — see "Commission Invoices" and "Service Invoices" — but
+`guest_invoices`, the remaining one of the three `invoices.invoice_type` values, still has no
 generator; that's what would finally give the Hotel hub's Invoices tab real rows) — each arrives as
 its own module inside the app shell.
 
