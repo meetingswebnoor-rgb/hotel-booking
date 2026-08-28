@@ -1,0 +1,4 @@
+Add a filter, to see the check in and check out, and booking date as per the customers, as per different type of bookings and different type of customers. Also based on future past check and check out of the customers. 
+Only super admin can see the email and mobile number of the customer, not the admin or manager. They only can see it before 24 hrs of the booking. Also, after the successful checkout, the email and phone number of the customer will be hidden for the admin and manager, after 24 hrs.
+Direct booking by the hotelier will be seen forever. The email and phone number of the customer, since it was intensional.
+Booking ID Compulsory and must be unique every time in every booking.
